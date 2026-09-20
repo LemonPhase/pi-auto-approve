@@ -1,0 +1,30 @@
+# Start by observing. Change to enforce when you want prompts and blocks.
+version: 1
+mode: shadow
+unmatched: allow
+
+# Milestone 1 has no Jev client yet. Local rules work without it.
+classifier:
+  enabled: false
+
+rules:
+  allow:
+    - id: git-status
+      tool: bash
+      command_exact: git status --short
+      reason: Routine status check.
+  ask:
+    - id: terraform-destroy
+      tool: bash
+      command_contains: terraform destroy
+      reason: Confirm infrastructure destruction.
+  block: []
+
+approval:
+  non_interactive: allow
+  max_pending_prompts: 20
+
+audit:
+  enabled: true
+  path: ~/.pi/agent/logs/pi-auto-approve.jsonl
+  include_redacted_action: false

@@ -1,0 +1,103 @@
+import assert from "node:assert/strict";
+import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import test from "node:test";
+import {
+  createExtensionRuntime, createBashToolDefinition, createReadToolDefinition,
+  createWriteToolDefinition, createEditToolDefinition, createFindToolDefinition,
+  createGrepToolDefinition, createLsToolDefinition, type ExtensionContext, type ExtensionCommandContext,
+  type ToolInfo,
+} from "@earendil-works/pi-coding-agent";
+import { loadExtensions } from "../node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js";
+
+test("real Pi loader registers native wrappers; commands, rules, reload, and native delegation work", async () => {
+  const root = await mkdtemp(join(tmpdir(), "guard-extension-"));
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = join(root, "agent");
+  await mkdir(join(root, "agent"));
+  await mkdir(join(root, ".pi"));
+  const project = join(root, ".pi/auto-approve.yaml");
+  await writeFile(project, "mode: enforce\nclassifier:\n  enabled: false\naudit:\n  enabled: false\n");
+  await writeFile(join(root, ".pi/settings.json"), JSON.stringify({ shellCommandPrefix: "printf 'prefix-'" }));
+  try {
+    const runtime = createExtensionRuntime();
+    const loaded = await loadExtensions([resolve("src/index.ts")], root, undefined, runtime);
+    assert.deepEqual(loaded.errors, []);
+    const extension = loaded.extensions[0];
+    const factories = [createBashToolDefinition, createReadToolDefinition, createWriteToolDefinition,
+      createEditToolDefinition, createFindToolDefinition, createGrepToolDefinition, createLsToolDefinition];
+    const tools = new Map<string, ToolInfo>(factories.map(factory => {
+      const tool = factory(root);
+      return [tool.name, { ...tool, sourceInfo: { path: `<builtin:${tool.name}>`, source: "builtin", scope: "user", origin: "top-level" } }];
+    }));
+    let active = ["bash", "read", "write", "edit"];
+    runtime.getAllTools = () => [...tools.values()];
+    runtime.getActiveTools = () => active;
+    runtime.setActiveTools = names => { active = names; };
+    runtime.refreshTools = () => {
+      for (const [name, registered] of extension.tools) tools.set(name, { ...registered.definition, sourceInfo: registered.sourceInfo });
+    };
+    const messages: string[] = [];
+    const ctx = {
+      cwd: root, hasUI: true, mode: "rpc", isProjectTrusted: () => false,
+      ui: { notify: (text: string) => messages.push(text), select: async () => "Allow once" },
+      sessionManager: { getSessionId: () => "test", getSessionFile: () => undefined, getBranch: () => [] },
+    } as unknown as ExtensionContext;
+    async function start() {
+      for (const handler of extension.handlers.get("session_start") ?? [])
+        await handler({ type: "session_start", reason: "startup" }, ctx);
+    }
+    async function command(name: string, args = "") {
+      await extension.commands.get(name)!.handler(args, ctx as ExtensionCommandContext);
+    }
+    async function run(name: string, args: Record<string, unknown>) {
+      return extension.tools.get(name)!.definition.execute("test-call", args, undefined, undefined, ctx);
+    }
+    await start();
+    assert.equal(extension.tools.size, 7);
+    assert.deepEqual(active, ["bash", "read", "write", "edit"]);
+    await run("write", { path: "a.txt", content: "before\n" });
+    await run("edit", { path: "a.txt", edits: [{ oldText: "before", newText: "after" }] });
+    assert.equal(await readFile(join(root, "a.txt"), "utf8"), "after\n");
+    assert.match(JSON.stringify(await run("read", { path: "a.txt" })), /after/);
+    assert.match(JSON.stringify(await run("ls", { path: "." })), /a.txt/);
+    assert.match(JSON.stringify(await run("find", { path: ".", pattern: "*.txt" })), /a.txt/);
+    assert.match(JSON.stringify(await run("grep", { path: ".", pattern: "after" })), /after/);
+    const untrustedOutput = JSON.stringify(await run("bash", { command: "printf working" }));
+    assert.match(untrustedOutput, /working/);
+    assert.ok(!untrustedOutput.includes("prefix-"), "untrusted shell settings must not change execution");
+    ctx.isProjectTrusted = () => true;
+    await start();
+    assert.match(JSON.stringify(await run("bash", { command: "printf working" })), /prefix-working/);
+    ctx.isProjectTrusted = () => false;
+    await start();
+    await writeFile(project, "mode: enforce\nclassifier:\n  enabled: false\nunmatched: block\naudit:\n  enabled: false\n");
+    await command("guard-reload");
+    await assert.rejects(run("write", { path: "blocked.txt", content: "never" }), /blocked/);
+    await command("guard-mode", "shadow");
+    await run("write", { path: "shadow.txt", content: "allowed" });
+    await command("guard-reload");
+    await assert.rejects(run("read", { path: "a.txt" }), /blocked/);
+    await writeFile(project, "mode: invalid");
+    await command("guard-reload");
+    await command("guard-mode", "enforce");
+    assert.match(messages.at(-1)!, /invalid/);
+    await run("write", { path: "invalid-config.txt", content: "still runs" });
+    await command("guard-status");
+    assert.match(messages.at(-1)!, /"active": false/);
+    // Session lifecycle must not lose wrappers or misreport them as custom.
+    await start();
+    await command("guard-status");
+    assert.match(messages.at(-1)!, /"skipped": \[\]/);
+    // An external override is left untouched on a later session start.
+    tools.set("bash", { ...tools.get("bash")!, sourceInfo: { path: "/custom/remote.ts", source: "extension", scope: "user", origin: "top-level" } });
+    await start();
+    await command("guard-status");
+    assert.ok(JSON.parse(messages.at(-1)!).skipped.includes("bash"));
+  } finally {
+    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    await rm(root, { recursive: true, force: true });
+  }
+});

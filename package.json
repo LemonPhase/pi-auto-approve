@@ -1,0 +1,34 @@
+{
+  "name": "pi-auto-approve",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A configurable, best-effort approval safety net for Pi",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "check": "npm run typecheck && npm test",
+    "test:live": "tsx scripts/live-smoke.ts && tsx scripts/live-print-smoke.ts"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "0.86.1"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.86.1",
+    "@types/node": "22.19.19",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "yaml": "^2.9.0",
+    "zod": "^4.1.12"
+  }
+}
