@@ -42,8 +42,9 @@ export function createJevClassifier(options: JevOptions = {}): ApprovalClassifie
   return {
     async classify(input: ClassificationInput, signal?: AbortSignal) {
       // Resolve per call so a mid-session login takes effect without a restart.
+      // An explicit key means direct TypeSafe unless an endpoint override says otherwise.
       const endpoint = options.endpoint ?? process.env.TYPESAFE_API_URL
-        ?? (!process.env.TYPESAFE_API_KEY && process.env.AI_GATEWAY_API_KEY ? GATEWAY_ENDPOINT : DEFAULT_ENDPOINT);
+        ?? (options.apiKey || process.env.TYPESAFE_API_KEY || !process.env.AI_GATEWAY_API_KEY ? DEFAULT_ENDPOINT : GATEWAY_ENDPOINT);
       const apiKey = options.apiKey ?? process.env.TYPESAFE_API_KEY ?? process.env.AI_GATEWAY_API_KEY;
       if (!apiKey) throw new Error("missing_credentials");
       // The gateway names the model typesafe-ai/jev; direct Jev pins jev-1.13.0.

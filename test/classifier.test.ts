@@ -94,8 +94,9 @@ test("HTTP failures and malformed answers follow the configured fallback", async
 });
 
 test("missing credentials never reach the network and stay visible", async () => {
-  const previous = process.env.TYPESAFE_API_KEY;
+  const previous = { direct: process.env.TYPESAFE_API_KEY, gateway: process.env.AI_GATEWAY_API_KEY };
   delete process.env.TYPESAFE_API_KEY;
+  delete process.env.AI_GATEWAY_API_KEY;
   try {
     const { calls, fetchImpl } = spy(() => reply(answer("approve", 1)));
     const decision = await evaluate(action, defaults, createJevClassifier({ fetchImpl }));
@@ -104,7 +105,10 @@ test("missing credentials never reach the network and stay visible", async () =>
     assert.equal((await evaluate(action, mergeConfig(defaults, { classifier: { on_error: "ask" } }),
       createJevClassifier({ fetchImpl }))).recommendation, "ask");
   } finally {
-    if (previous !== undefined) process.env.TYPESAFE_API_KEY = previous;
+    if (previous.direct !== undefined) process.env.TYPESAFE_API_KEY = previous.direct;
+    else delete process.env.TYPESAFE_API_KEY;
+    if (previous.gateway !== undefined) process.env.AI_GATEWAY_API_KEY = previous.gateway;
+    else delete process.env.AI_GATEWAY_API_KEY;
   }
 });
 
