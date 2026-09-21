@@ -3,7 +3,7 @@ version: 1
 mode: shadow
 unmatched: allow
 
-# Milestone 1 has a working classifier, but keep it off to use local rules only.
+# Set enabled: false to use local rules only, without sending anything to Jev.
 classifier:
   enabled: false
 
