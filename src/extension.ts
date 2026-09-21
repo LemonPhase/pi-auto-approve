@@ -50,7 +50,7 @@ export function registerAutoApprove(pi: ExtensionAPI, classifier?: ApprovalClass
 
   const status = () => JSON.stringify({
     active: state.active, mode: mode ?? state.config.mode, files: state.files, errors: state.errors,
-    classifier: classifier ? "available" : "not implemented (Milestone 2)",
+    classifier: classifier ? "available" : "not configured",
     coverage, skipped, settings: { ...state.config, mode: mode ?? state.config.mode },
   }, null, 2);
 
@@ -63,8 +63,11 @@ export function registerAutoApprove(pi: ExtensionAPI, classifier?: ApprovalClass
     if (!state.active) warn(`${state.errors.join("; ")}. Approver inactive: actions run without approval checks.`);
     else {
       notify(`Mode: ${state.config.mode}; classifier error: ${state.config.classifier.on_error}; no UI: ${state.config.approval.non_interactive}.`);
-      if (state.config.mode !== "disabled" && state.config.classifier.enabled && !classifier)
-        warn(`Jev is not implemented yet; unmatched calls use classifier.on_error=${state.config.classifier.on_error}.`);
+      if (state.config.mode !== "disabled" && state.config.classifier.enabled) {
+        if (!classifier) warn(`No classifier is configured; unmatched calls use classifier.on_error=${state.config.classifier.on_error}.`);
+        else if (!process.env.TYPESAFE_API_KEY)
+          warn(`TYPESAFE_API_KEY is not set; Jev calls use classifier.on_error=${state.config.classifier.on_error}.`);
+      }
     }
   }
 

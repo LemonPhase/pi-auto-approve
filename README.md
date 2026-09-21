@@ -2,7 +2,7 @@
 
 A configurable, best-effort safety net for Pi. It checks tool calls against your rules and can ask before allowing an action.
 
-Milestone 1 is implemented: configuration, local rules, approval prompts, modes, logging, and built-in tool wrappers. **Jev integration is next.** There are no external classification requests yet.
+Milestones 1 and 2 are implemented: configuration, local rules, approval prompts, modes, logging, built-in tool wrappers, and the [Jev](https://docs.typesafe.ai) classifier. Milestone 3 (evaluation) ships its harness and offline checks; the live measurement needs `TYPESAFE_API_KEY`.
 
 ## Install
 
@@ -64,7 +64,25 @@ Rules match literal strings, not shell behaviour. Different spelling or quoting 
 
 By default, mode is `shadow`: decisions are recorded but calls run normally. `enforce` applies decisions; `disabled` skips policy evaluation and audit records.
 
-The spec defaults to enabling the classifier. Until Milestone 2, the extension visibly reports it as unavailable and uses `classifier.on_error` (default `allow`). Set `classifier.enabled: false` to use local rules with `unmatched` handling instead.
+The classifier is enabled by default. Unmatched supported calls are sent to Jev unless a rule matches. Local rules work on their own with `classifier.enabled: false`.
+
+## Jev and privacy
+
+Jev is an external service. When a call is classified, this extension sends it to `POST https://api.typesafe.ai/v1/systemone`.
+
+Sent: the tool name, the redacted command or filesystem arguments (path and content sizes, never bodies), the working directory, the omission/truncation flags, your editable `classifier.instructions` rubric, and — when `classifier.input.include_user_context` is true — the latest user messages up to `max_user_context_chars`.
+
+Never sent: file contents, edit replacement text, environment values, provider credentials, and raw local configuration.
+
+Redaction covers recognizable credentials, authorization headers, tokens, URL userinfo, and query strings, and is best effort. Commands, filenames, and messages can contain private information that cannot be recognized as a secret. Omitting content also limits detection: classifying a script write by path and size cannot reveal what the script does.
+
+To avoid external requests entirely, set `classifier.enabled: false` and use `unmatched`. To keep classification without sending user context, set `classifier.input.include_user_context: false`.
+
+```sh
+export TYPESAFE_API_KEY=...   # required for classification
+```
+
+Missing credentials, HTTP errors, malformed answers, oversized input, and timeouts follow `classifier.on_error` and never become an approval. `TYPESAFE_API_URL` overrides the endpoint (for example, a gateway); leave it unset to use Jev directly. `/guard-status` reports classifier availability and the active fallback.
 
 In sessions without an approval UI, `approval.non_interactive` controls ask decisions: `allow` by default, or `block`. RPC sessions have a UI protocol and receive approval requests; their client must answer them.
 
@@ -97,9 +115,13 @@ Set `audit.enabled: false` to disable recording. Logging failures warn and let n
 
 ```sh
 npm run check
+# or, just the no-network tests:
+npm run test:local
 ```
 
 The automated suite covers configuration validation/merging, rules, fake classifier routing, thresholds and timeouts, prompt queues, cancellation, argument inspection, audit privacy, Pi loading, and real native tool delegation.
+
+These tests do not start Pi as a subprocess, contact a model provider, use your credentials, or consume model quota. They load the installed Pi extension APIs locally and call the wrapped tools with fixed inputs. Classifier results, approval choices, and model responses are hardcoded test doubles.
 
 After installing, run the optional live checks:
 
@@ -107,6 +129,15 @@ After installing, run the optional live checks:
 npm run test:live
 ```
 
-These spawn headless Pi using your existing credentials and may incur model costs. They use harmless marker commands in disposable temporary directories, exercise RPC approval/rejection and print-mode handling, and remove their fixtures afterwards. They do not edit your global approval policy or call Jev.
+These spawn headless Pi using your existing credentials and may incur model costs. They are optional and only verify the installed package through a real Pi session. They use harmless marker commands in disposable temporary directories, exercise RPC approval/rejection, print-mode handling, and the full Jev request/response path against a local stub, and remove their fixtures afterwards. They do not edit your global approval policy, and they never call the real Jev service.
+
+Measure Jev itself with the labelled evaluation set:
+
+```sh
+npm run test:eval            # all cases, needs TYPESAFE_API_KEY
+npm run test:eval -- tuning  # threshold-tuning cases only
+```
+
+This reports missed dangerous actions, unnecessary prompts, errors, and latency for the tuning and held-out groups. It consumes Jev quota. Ordinary `npm run check` never calls Jev.
 
 See [the specification](pi-auto-approve-spec.md) for the full plan.

@@ -15,8 +15,10 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
+    "test:local": "npm test",
     "check": "npm run typecheck && npm test",
-    "test:live": "tsx scripts/live-smoke.ts && tsx scripts/live-print-smoke.ts"
+    "test:live": "tsx scripts/live-smoke.ts && tsx scripts/live-print-smoke.ts",
+    "test:eval": "tsx scripts/eval.ts"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "0.86.1"

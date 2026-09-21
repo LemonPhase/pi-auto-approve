@@ -3,6 +3,9 @@ import type { Action, ApprovalClassifier, ClassificationInput, Decision, Handlin
 import { actionSummary, redact } from "./audit.js";
 import { cancellable, checkCancelled } from "./cancellation.js";
 
+/** Error categories the classifier client may report; anything else is a generic error. */
+const classifierCategories = new Set(["input_limit", "invalid_response", "missing_credentials", "unauthorized", "rate_limited", "provider_error"]);
+
 export function fallback(handling: Handling, reason: string, errorCategory?: string): Decision {
   return { recommendation: handling === "allow" ? "approve" : handling, source: "fallback", reason, errorCategory };
 }
@@ -43,7 +46,7 @@ export async function evaluate(action: Action, config: Config, classifier?: Appr
     };
   }
   if (!config.classifier.enabled) return fallback(config.unmatched, "Classifier disabled; using unmatched setting.");
-  if (!classifier) return fallback(config.classifier.on_error, "Jev integration is not available in Milestone 1.", "classifier_unavailable");
+  if (!classifier) return fallback(config.classifier.on_error, "No classifier is configured.", "classifier_unavailable");
   const controller = new AbortController();
   const combined = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -62,7 +65,7 @@ export async function evaluate(action: Action, config: Config, classifier?: Appr
     } };
   } catch (error) {
     checkCancelled(signal);
-    const code = timedOut ? "timeout" : error instanceof Error && ["input_limit", "invalid_response"].includes(error.message) ? error.message : "classifier_error";
+    const code = timedOut ? "timeout" : error instanceof Error && classifierCategories.has(error.message) ? error.message : "classifier_error";
     return fallback(config.classifier.on_error, `Classifier unavailable (${code}); using configured fallback.`, code);
   } finally { if (timer) clearTimeout(timer); }
 }

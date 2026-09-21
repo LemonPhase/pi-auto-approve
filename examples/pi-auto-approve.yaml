@@ -3,7 +3,7 @@ version: 1
 mode: shadow
 unmatched: allow
 
-# Milestone 1 has no Jev client yet. Local rules work without it.
+# Milestone 1 has a working classifier, but keep it off to use local rules only.
 classifier:
   enabled: false
 
