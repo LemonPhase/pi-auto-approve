@@ -62,7 +62,7 @@ test("classifier input excludes bodies, redacts secrets, marks truncation, and r
   const pgAction = { ...action, args: { command: 'psql "postgresql://user:hunter2@db.example:5432/prod" -c "select 1"' } };
   const pgInput = classificationInput(pgAction, defaults);
   assert.ok(!JSON.stringify(pgInput).includes("hunter2"));
-  assert.match(JSON.stringify(pgInput.args), /postgresql:\/\/user:\[REDACTED\]@/);
+  assert.match(JSON.stringify(pgInput.args), /postgresql:\/\/\[REDACTED\]@/);
   const config = mergeConfig(defaults, { classifier: { input: { max_action_chars: 5, include_user_context: false } } });
   assert.equal((await evaluate(action, config, fake())).errorCategory, "input_limit");
 });
