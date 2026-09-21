@@ -13,8 +13,8 @@ export function redact(text: string): string {
     .replace(/\b(Bearer|Basic)\s+[^\s'";]+/gi, "$1 [REDACTED]")
     .replace(/\b([\w-]*(?:token|password|passwd|secret|api[_-]?key|credential)[\w-]*\s*[=:]\s*)(?:"[^"]*"|'[^']*'|[^\s;&]+)/gi, "$1[REDACTED]")
     .replace(/(--(?:password|token|secret|api-key)\s+)(?:"[^"]*"|'[^']*'|[^\s;]+)/gi, "$1[REDACTED]")
-    .replace(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/gi, "$1[REDACTED]@")
-    .replace(/(https?:\/\/[^\s?'"#]+)\?[^\s'"#]+/gi, "$1?[REDACTED]");
+    .replace(/([a-z][\w+.-]*:\/\/)[^\s/@]+:[^\s/@]+@/gi, "$1[REDACTED]@")
+    .replace(/([a-z][\w+.-]*:\/\/[^\s?'"#]+)\?[^\s'"#]+/gi, "$1?[REDACTED]");
 }
 
 /** Never copy native write/edit bodies into summaries, even when logging is enabled. */
