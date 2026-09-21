@@ -65,8 +65,8 @@ export function registerAutoApprove(pi: ExtensionAPI, classifier?: ApprovalClass
       notify(`Mode: ${state.config.mode}; classifier error: ${state.config.classifier.on_error}; no UI: ${state.config.approval.non_interactive}.`);
       if (state.config.mode !== "disabled" && state.config.classifier.enabled) {
         if (!classifier) warn(`No classifier is configured; unmatched calls use classifier.on_error=${state.config.classifier.on_error}.`);
-        else if (!process.env.TYPESAFE_API_KEY)
-          warn(`TYPESAFE_API_KEY is not set; Jev calls use classifier.on_error=${state.config.classifier.on_error}.`);
+        else if (!process.env.TYPESAFE_API_KEY && !process.env.AI_GATEWAY_API_KEY)
+          warn(`Neither TYPESAFE_API_KEY nor AI_GATEWAY_API_KEY is set; Jev calls use classifier.on_error=${state.config.classifier.on_error}.`);
       }
     }
   }

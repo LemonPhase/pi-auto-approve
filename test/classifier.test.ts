@@ -139,3 +139,21 @@ test("the endpoint can be overridden for gateways and tests", async () => {
   await createJevClassifier({ apiKey: "k", endpoint: "http://example.test/jev", fetchImpl }).classify(input);
   assert.equal(calls[0].url, "http://example.test/jev");
 });
+
+test("AI_GATEWAY_API_KEY routes through the Vercel TypeSafe endpoint", async () => {
+  const saved = { key: process.env.TYPESAFE_API_KEY, gateway: process.env.AI_GATEWAY_API_KEY, url: process.env.TYPESAFE_API_URL };
+  delete process.env.TYPESAFE_API_KEY;
+  delete process.env.TYPESAFE_API_URL;
+  process.env.AI_GATEWAY_API_KEY = "gateway-key";
+  try {
+    const { calls, fetchImpl } = spy(() => reply(answer("approve", 1)));
+    await createJevClassifier({ fetchImpl }).classify(input);
+    assert.equal(calls[0].url, "https://ai-gateway.vercel.sh/typesafe/v1/systemone");
+    assert.equal((calls[0].init.headers as Record<string, string>).authorization, "Bearer gateway-key");
+    assert.equal(JSON.parse(String(calls[0].init.body)).model, "typesafe-ai/jev");
+  } finally {
+    if (saved.key === undefined) delete process.env.TYPESAFE_API_KEY; else process.env.TYPESAFE_API_KEY = saved.key;
+    if (saved.gateway === undefined) delete process.env.AI_GATEWAY_API_KEY; else process.env.AI_GATEWAY_API_KEY = saved.gateway;
+    if (saved.url === undefined) delete process.env.TYPESAFE_API_URL; else process.env.TYPESAFE_API_URL = saved.url;
+  }
+});

@@ -68,7 +68,9 @@ The classifier is enabled by default. Unmatched supported calls are sent to Jev 
 
 ## Jev and privacy
 
-Jev is an external service. When a call is classified, this extension sends it to `POST https://api.typesafe.ai/v1/systemone`.
+Jev is an external service. When a call is classified, this extension sends it to `POST https://api.typesafe.ai/v1/systemone`, or to the Vercel AI Gateway TypeSafe endpoint when `AI_GATEWAY_API_KEY` is set instead of `TYPESAFE_API_KEY`.
+
+Free option: Vercel currently lists Jev as free through AI Gateway. Create a key, then set only `AI_GATEWAY_API_KEY` (leave `TYPESAFE_API_KEY` unset and `TYPESAFE_API_URL` unset) and the client routes to `https://ai-gateway.vercel.sh/typesafe/v1/systemone` with model `typesafe-ai/jev`. Requests are billed through Vercel and appear in its usage logs alongside your other Gateway calls.
 
 Sent: the tool name, the redacted command or filesystem arguments (path and content sizes, never bodies), the working directory, the omission/truncation flags, your editable `classifier.instructions` rubric, and — when `classifier.input.include_user_context` is true — the latest user messages up to `max_user_context_chars`.
 
@@ -79,7 +81,8 @@ Redaction covers recognizable credentials, authorization headers, tokens, URL us
 To avoid external requests entirely, set `classifier.enabled: false` and use `unmatched`. To keep classification without sending user context, set `classifier.input.include_user_context: false`.
 
 ```sh
-export TYPESAFE_API_KEY=...   # required for classification
+export TYPESAFE_API_KEY=...      # direct Jev
+# or: export AI_GATEWAY_API_KEY=...  # free via Vercel AI Gateway (no TYPESAFE_API_KEY needed)
 ```
 
 Missing credentials, HTTP errors, malformed answers, oversized input, and timeouts follow `classifier.on_error` and never become an approval. `TYPESAFE_API_URL` overrides the endpoint (for example, a gateway); leave it unset to use Jev directly. `/guard-status` reports classifier availability and the active fallback.

@@ -1,12 +1,12 @@
-/** Live evaluation against Jev. Requires TYPESAFE_API_KEY; set TYPESAFE_API_URL to dry-run a stub. */
+/** Live evaluation against Jev. Requires TYPESAFE_API_KEY or AI_GATEWAY_API_KEY; set TYPESAFE_API_URL to dry-run a stub. */
 import { createJevClassifier } from "../src/classifier.js";
 import { defaults } from "../src/config.js";
 import { evaluate } from "../src/policy.js";
 import { cases } from "../test/evals/cases.js";
 import { summarize, type Outcome } from "../test/evals/score.js";
 
-if (!process.env.TYPESAFE_API_KEY) {
-  console.error("TYPESAFE_API_KEY is not set; the live evaluation cannot run.");
+if (!process.env.TYPESAFE_API_KEY && !process.env.AI_GATEWAY_API_KEY) {
+  console.error("Neither TYPESAFE_API_KEY nor AI_GATEWAY_API_KEY is set; the live evaluation cannot run.");
   console.error("This does not affect `npm run check`. Ordinary tests never call Jev.");
   process.exit(1);
 }
