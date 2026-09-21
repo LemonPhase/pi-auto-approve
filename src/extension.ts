@@ -5,6 +5,8 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { loadConfig, defaults, type ConfigState } from "./config.js";
 import { AuditLog } from "./audit.js";
+import { clearPersistedKeys, credentialSummary, envFor, loadPersistedKeys, persistKey, type KeyKind } from "./auth.js";
+import { DEFAULT_ENDPOINT, GATEWAY_ENDPOINT } from "./classifier.js";
 import { Guard } from "./guard.js";
 import type { Action, ApprovalClassifier, Mode } from "./types.js";
 import { wrapTool } from "./tools.js";
@@ -48,14 +50,19 @@ export function registerAutoApprove(pi: ExtensionAPI, classifier?: ApprovalClass
   const audit = new AuditLog(warn);
   const guard = new Guard(audit, warn, classifier);
 
+  function envPlaceholder(kind: KeyKind): string {
+    return kind === "gateway" ? "vck_... (AI Gateway API key)" : "sk-... (TypeSafe API key)";
+  }
+
   const status = () => JSON.stringify({
     active: state.active, mode: mode ?? state.config.mode, files: state.files, errors: state.errors,
-    classifier: classifier ? "available" : "not configured",
+    classifier: classifier ? "available" : "not configured", credentials: credentialSummary(),
     coverage, skipped, settings: { ...state.config, mode: mode ?? state.config.mode },
   }, null, 2);
 
   async function reload(ctx: ExtensionContext): Promise<void> {
     context = ctx;
+    await loadPersistedKeys(getAgentDir());
     const loaded = await loadConfig(ctx.cwd, getAgentDir());
     state = loaded;
     mode = undefined;
@@ -137,5 +144,33 @@ export function registerAutoApprove(pi: ExtensionAPI, classifier?: ApprovalClass
     const count = args.trim() ? Number(args.trim()) : 10;
     if (!Number.isInteger(count) || count < 1 || count > 100) { notify("Usage: /guard-last [1..100]", true); return; }
     notify(JSON.stringify(audit.recent.slice(-count), null, 2));
+  } });
+
+  pi.registerCommand("guard-login", { description: "Save a Jev API key (Vercel AI Gateway or direct TypeSafe)", handler: async (_args, ctx) => {
+    context = ctx;
+    if (!classifier) { notify("No classifier is configured; login cannot help.", true); return; }
+    const choice = ctx.hasUI
+      ? await ctx.ui.select("Where should Jev calls go?",
+        ["Vercel AI Gateway (free tier)", "Direct TypeSafe API"], { timeout: 120_000 })
+      : undefined;
+    if (!choice) { notify(ctx.hasUI ? "Login cancelled." : "/guard-login needs an interactive UI.", true); return; }
+    const kind: KeyKind = choice.startsWith("Vercel") ? "gateway" : "direct";
+    const key = ctx.hasUI ? await ctx.ui.input("Paste your API key", envPlaceholder(kind), { timeout: 120_000 }) : undefined;
+    if (!key?.trim()) { notify("No key entered; nothing was saved.", true); return; }
+    await persistKey(getAgentDir(), kind, key.trim());
+    notify(kind === "gateway"
+      ? `Saved ${envFor(kind)}. Jev calls now route through ${GATEWAY_ENDPOINT} (model typesafe-ai/jev).`
+      : `Saved ${envFor(kind)}. Jev calls now go to ${DEFAULT_ENDPOINT}.`);
+  } });
+
+  pi.registerCommand("guard-logout", { description: "Remove saved Jev API keys", handler: async (_args, ctx) => {
+    context = ctx;
+    const choice = ctx.hasUI
+      ? await ctx.ui.select("Remove which saved key?", ["Both", "Vercel AI Gateway key", "Direct TypeSafe key"], { timeout: 120_000 })
+      : undefined;
+    if (!choice) { notify(ctx.hasUI ? "Logout cancelled." : "/guard-logout needs an interactive UI.", true); return; }
+    const kinds: KeyKind[] = choice === "Both" ? ["direct", "gateway"] : choice.startsWith("Vercel") ? ["gateway"] : ["direct"];
+    await clearPersistedKeys(getAgentDir(), kinds);
+    notify(`Removed ${kinds.map(envFor).join(" and ")} from this session and saved settings.`);
   } });
 }

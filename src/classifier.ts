@@ -1,7 +1,7 @@
 import type { ApprovalClassifier, ClassificationInput } from "./types.js";
 
-const DEFAULT_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
-const GATEWAY_ENDPOINT = "https://ai-gateway.vercel.sh/typesafe/v1/systemone";
+export const DEFAULT_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
+export const GATEWAY_ENDPOINT = "https://ai-gateway.vercel.sh/typesafe/v1/systemone";
 
 /** Fixed choice options. The editable user rubric travels in the question instructions. */
 const CRITERIA = {
@@ -38,12 +38,12 @@ function interpret(body: unknown, latencyMs: number): { recommendation: "approve
 }
 
 export function createJevClassifier(options: JevOptions = {}): ApprovalClassifier {
-  const gateway = !options.endpoint && !process.env.TYPESAFE_API_URL
-    && !process.env.TYPESAFE_API_KEY && !!process.env.AI_GATEWAY_API_KEY;
-  const endpoint = options.endpoint ?? process.env.TYPESAFE_API_URL ?? (gateway ? GATEWAY_ENDPOINT : DEFAULT_ENDPOINT);
   const fetcher = options.fetchImpl ?? fetch;
   return {
     async classify(input: ClassificationInput, signal?: AbortSignal) {
+      // Resolve per call so a mid-session login takes effect without a restart.
+      const endpoint = options.endpoint ?? process.env.TYPESAFE_API_URL
+        ?? (!process.env.TYPESAFE_API_KEY && process.env.AI_GATEWAY_API_KEY ? GATEWAY_ENDPOINT : DEFAULT_ENDPOINT);
       const apiKey = options.apiKey ?? process.env.TYPESAFE_API_KEY ?? process.env.AI_GATEWAY_API_KEY;
       if (!apiKey) throw new Error("missing_credentials");
       // The gateway names the model typesafe-ai/jev; direct Jev pins jev-1.13.0.

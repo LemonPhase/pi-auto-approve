@@ -85,6 +85,8 @@ export TYPESAFE_API_KEY=...      # direct Jev
 # or: export AI_GATEWAY_API_KEY=...  # free via Vercel AI Gateway (no TYPESAFE_API_KEY needed)
 ```
 
+Or skip env vars: run `/guard-login` in a Pi session and paste a key. It takes effect immediately, is stored with user-only permissions (0600) in `~/.pi/agent/pi-auto-approve-auth.json`, and `/guard-logout` removes it. Shell-exported keys still win on the next start; `/guard-status` reports which credential is active.
+
 Missing credentials, HTTP errors, malformed answers, oversized input, and timeouts follow `classifier.on_error` and never become an approval. `TYPESAFE_API_URL` overrides the endpoint (for example, a gateway); leave it unset to use Jev directly. `/guard-status` reports classifier availability and the active fallback.
 
 In sessions without an approval UI, `approval.non_interactive` controls ask decisions: `allow` by default, or `block`. RPC sessions have a UI protocol and receive approval requests; their client must answer them.
@@ -95,6 +97,8 @@ In sessions without an approval UI, `approval.non_interactive` controls ask deci
 - `/guard-mode shadow|enforce|disabled`: change this session's mode without editing files.
 - `/guard-reload`: reload configuration and clear the session mode override.
 - `/guard-last [1..100]`: show recent in-memory audit records.
+- `/guard-login`: save a Jev API key (Vercel AI Gateway or direct TypeSafe) for this and future sessions.
+- `/guard-logout`: remove saved Jev API keys from the session and saved settings.
 
 File changes take effect on startup or explicit reload. Pending decisions retain their original settings. Cancelling a call cancels its approval and never authorizes delayed execution.
 

@@ -14,6 +14,7 @@ import { loadExtensions } from "../node_modules/@earendil-works/pi-coding-agent/
 test("real Pi loader registers native wrappers; commands, rules, reload, and native delegation work", async () => {
   const root = await mkdtemp(join(tmpdir(), "guard-extension-"));
   const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  const previousKeys = { direct: process.env.TYPESAFE_API_KEY, gateway: process.env.AI_GATEWAY_API_KEY };
   process.env.PI_CODING_AGENT_DIR = join(root, "agent");
   await mkdir(join(root, "agent"));
   await mkdir(join(root, ".pi"));
@@ -41,7 +42,11 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
     const messages: string[] = [];
     const ctx = {
       cwd: root, hasUI: true, mode: "rpc", isProjectTrusted: () => false,
-      ui: { notify: (text: string) => messages.push(text), select: async () => "Allow once" },
+      ui: {
+        notify: (text: string) => messages.push(text),
+        select: async (_title: string, options: string[]) => (options[0] === "Allow once" ? "Allow once" : options[0]),
+        input: async () => "test-gateway-key-123",
+      },
       sessionManager: { getSessionId: () => "test", getSessionFile: () => undefined, getBranch: () => [] },
     } as unknown as ExtensionContext;
     async function start() {
@@ -90,6 +95,19 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
     await start();
     await command("guard-status");
     assert.match(messages.at(-1)!, /"skipped": \[\]/);
+    // /guard-login persists a key, activates it for this session, and reports it; /guard-logout removes both.
+    await command("guard-login");
+    const authFile = join(root, "agent", "pi-auto-approve-auth.json");
+    const saved = JSON.parse(await readFile(authFile, "utf8"));
+    assert.equal(saved.AI_GATEWAY_API_KEY, "test-gateway-key-123");
+    assert.equal(process.env.AI_GATEWAY_API_KEY, "test-gateway-key-123");
+    assert.match(messages.at(-1)!, /ai-gateway\.vercel\.sh/);
+    await command("guard-status");
+    assert.equal(JSON.parse(messages.at(-1)!).credentials, "gateway");
+    await command("guard-logout");
+    assert.ok(!JSON.parse(await readFile(authFile, "utf8")).AI_GATEWAY_API_KEY);
+    assert.equal(process.env.AI_GATEWAY_API_KEY, undefined);
+    assert.match(messages.at(-1)!, /Removed/);
     // An external override is left untouched on a later session start.
     tools.set("bash", { ...tools.get("bash")!, sourceInfo: { path: "/custom/remote.ts", source: "extension", scope: "user", origin: "top-level" } });
     await start();
@@ -98,6 +116,8 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
   } finally {
     if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    if (previousKeys.direct === undefined) delete process.env.TYPESAFE_API_KEY; else process.env.TYPESAFE_API_KEY = previousKeys.direct;
+    if (previousKeys.gateway === undefined) delete process.env.AI_GATEWAY_API_KEY; else process.env.AI_GATEWAY_API_KEY = previousKeys.gateway;
     await rm(root, { recursive: true, force: true });
   }
 });
