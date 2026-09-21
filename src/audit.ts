@@ -86,7 +86,7 @@ export function renderRecords(records: AuditRecord[]): string {
       (OUTCOME_LABEL[record.outcome] ?? record.outcome) + mode];
     const widths = [8, 6, 7, 18, 12];
     const target = summary ? displayTarget(summary) : "(details not recorded)";
-    return columns.map((column, index) => column.padEnd(widths[index])).join(" ") + target;
+    return columns.map((column, index) => column.padEnd(widths[index])).join(" ") + ` ${target}`;
   });
   return lines.length ? lines.join("\n") : "No calls evaluated yet.";
 }
