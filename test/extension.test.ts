@@ -90,11 +90,12 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
     assert.match(messages.at(-1)!, /invalid/);
     await run("write", { path: "invalid-config.txt", content: "still runs" });
     await command("guard-status");
-    assert.match(messages.at(-1)!, /"active": false/);
+    assert.match(messages.at(-1)!, /INACTIVE/);
+    assert.match(messages.at(-1)!, /invalid/);
     // Session lifecycle must not lose wrappers or misreport them as custom.
     await start();
     await command("guard-status");
-    assert.match(messages.at(-1)!, /"skipped": \[\]/);
+    assert.match(messages.at(-1)!, /Unguarded tools: none/);
     // /guard-login persists a key, activates it for this session, and reports it; /guard-logout removes both.
     await command("guard-login");
     const authFile = join(root, "agent", "pi-auto-approve-auth.json");
@@ -103,16 +104,26 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
     assert.equal(process.env.AI_GATEWAY_API_KEY, "test-gateway-key-123");
     assert.match(messages.at(-1)!, /ai-gateway\.vercel\.sh/);
     await command("guard-status");
-    assert.equal(JSON.parse(messages.at(-1)!).credentials, "gateway");
+    assert.match(messages.at(-1)!, /Vercel AI Gateway/);
     await command("guard-logout");
     assert.ok(!JSON.parse(await readFile(authFile, "utf8")).AI_GATEWAY_API_KEY);
     assert.equal(process.env.AI_GATEWAY_API_KEY, undefined);
     assert.match(messages.at(-1)!, /Removed/);
+    // /guard-last renders one human-readable line per call, with the command and no metadata.
+    await writeFile(project, "mode: shadow\nclassifier:\n  enabled: false\naudit:\n  enabled: true\n");
+    await command("guard-reload");
+    await run("write", { path: "last-demo.txt", content: "demo" });
+    await command("guard-last");
+    const last = messages.at(-1)!;
+    assert.match(last, /write/);
+    assert.match(last, /ran/);
+    assert.match(last, /last-demo\.txt/);
+    assert.ok(!last.includes("configFingerprint") && !last.includes("actionHash"), "metadata stays out of the display");
     // An external override is left untouched on a later session start.
     tools.set("bash", { ...tools.get("bash")!, sourceInfo: { path: "/custom/remote.ts", source: "extension", scope: "user", origin: "top-level" } });
     await start();
     await command("guard-status");
-    assert.ok(JSON.parse(messages.at(-1)!).skipped.includes("bash"));
+    assert.match(messages.at(-1)!, /Unguarded tools:.*\bbash\b/);
   } finally {
     if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = previousAgentDir;

@@ -4,7 +4,7 @@ import {
   getAgentDir, SettingsManager, type ExtensionAPI, type ExtensionContext, type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { loadConfig, defaults, type ConfigState } from "./config.js";
-import { AuditLog } from "./audit.js";
+import { AuditLog, renderRecords } from "./audit.js";
 import { clearPersistedKeys, credentialSummary, envFor, loadPersistedKeys, persistKey, type KeyKind } from "./auth.js";
 import { DEFAULT_ENDPOINT, GATEWAY_ENDPOINT } from "./classifier.js";
 import { Guard } from "./guard.js";
@@ -54,11 +54,27 @@ export function registerAutoApprove(pi: ExtensionAPI, classifier?: ApprovalClass
     return kind === "gateway" ? "vck_... (AI Gateway API key)" : "sk-... (TypeSafe API key)";
   }
 
-  const status = () => JSON.stringify({
-    active: state.active, mode: mode ?? state.config.mode, files: state.files, errors: state.errors,
-    classifier: classifier ? "available" : "not configured", credentials: credentialSummary(),
-    coverage, skipped, settings: { ...state.config, mode: mode ?? state.config.mode },
-  }, null, 2);
+  const status = () => {
+    const lines: string[] = [];
+    const credential = credentialSummary();
+    if (!state.active) {
+      lines.push("Pi Auto Approve: INACTIVE — actions run without approval checks.");
+      for (const error of state.errors) lines.push(`  Configuration error: ${error}`);
+    } else {
+      const effectiveMode = mode ?? state.config.mode;
+      lines.push(`Pi Auto Approve — mode: ${effectiveMode}${mode ? " (session override)" : ""}`);
+      lines.push(`  Rules: ${state.config.rules.block.length} block, ${state.config.rules.ask.length} ask, ${state.config.rules.allow.length} allow`);
+      if (!classifier) lines.push(`  Classifier: not configured; unmatched calls use ${state.config.classifier.on_error}`);
+      else if (credential === "none") lines.push(`  Classifier: enabled, but no credentials — calls fall back to ${state.config.classifier.on_error}`);
+      else lines.push(`  Classifier: enabled; errors fall back to ${state.config.classifier.on_error}`);
+      lines.push(`  Asks without a UI: ${state.config.approval.non_interactive}`);
+    }
+    lines.push(`  Credentials: ${credential === "gateway" ? "Vercel AI Gateway" : credential === "direct" ? "direct TypeSafe" : "none"}`);
+    lines.push(`  Configuration files: ${state.files.length ? state.files.join(", ") : "none loaded (defaults)"}`);
+    lines.push(`  Tool coverage: ${coverage.length ? coverage.join(", ") : "none"}`);
+    lines.push(`  Unguarded tools: ${skipped.length ? skipped.join(", ") : "none"}`);
+    return lines.join("\n");
+  };
 
   async function reload(ctx: ExtensionContext): Promise<void> {
     context = ctx;
@@ -143,7 +159,7 @@ export function registerAutoApprove(pi: ExtensionAPI, classifier?: ApprovalClass
     context = ctx;
     const count = args.trim() ? Number(args.trim()) : 10;
     if (!Number.isInteger(count) || count < 1 || count > 100) { notify("Usage: /guard-last [1..100]", true); return; }
-    notify(JSON.stringify(audit.recent.slice(-count), null, 2));
+    notify(renderRecords(audit.recent.slice(-count)));
   } });
 
   pi.registerCommand("guard-login", { description: "Save a Jev API key (Vercel AI Gateway or direct TypeSafe)", handler: async (_args, ctx) => {

@@ -93,6 +93,12 @@ test("audit logs outcomes with restrictive permissions and no bodies; audit fail
     assert.ok(!text.includes("PRIVATE BODY"));
     assert.deepEqual(text.trim().split("\n").map(line => JSON.parse(line).outcome), ["evaluated", "execution_started", "executed"]);
     assert.equal((await stat(s.config.audit.path)).mode & 0o777, 0o600);
+    // With the file flag off, the file drops the summary but memory keeps it for /guard-last.
+    s.config.audit.include_redacted_action = false;
+    await guard.execute(write, s, undefined, undefined, undefined, async () => "again");
+    const lastLine = (await readFile(s.config.audit.path, "utf8")).trim().split("\n").at(-1)!;
+    assert.ok(!JSON.parse(lastLine).action, "file omits the summary unless opted in");
+    assert.ok(log.recent.at(-1)!.action, "memory keeps the summary for /guard-last");
     let warnings = 0;
     const failingLog = new AuditLog(() => { warnings++; });
     s.config.audit.path = root; // Opening a directory as a log fails.

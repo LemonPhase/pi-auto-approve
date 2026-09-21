@@ -22,7 +22,8 @@ export class Guard {
       sessionId: action.sessionId, toolCallId: action.id, tool: action.tool,
       actionHash: hash({ tool: action.tool, args: action.args, cwd: action.cwd }),
       mode: config.mode, configFingerprint: hash(config),
-      ...(config.audit.include_redacted_action ? { action: actionSummary(action) } : {}),
+      // Always recorded in memory (redacted); the file copy drops it unless opted in.
+      action: actionSummary(action),
     };
     let outcome = "failed";
     try {

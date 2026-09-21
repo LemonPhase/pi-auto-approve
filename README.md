@@ -106,10 +106,10 @@ To avoid external requests entirely, set `classifier.enabled: false` and use `un
 
 ## Commands
 
-- `/guard-status`: show mode, configuration, fallback choices, credentials, and tool coverage.
+- `/guard-status`: show mode, rules, credentials, fallbacks, and tool coverage.
 - `/guard-mode shadow|enforce|disabled`: change this session's mode without editing files.
 - `/guard-reload`: reload configuration and clear the session mode override.
-- `/guard-last [1..100]`: show recent in-memory audit records.
+- `/guard-last [1..100]`: show recent calls — one line per call with the decision, outcome, and the command or path.
 - `/guard-login`: save a Jev API key (Vercel AI Gateway or direct TypeSafe) for this and future sessions.
 - `/guard-logout`: remove saved Jev API keys from the session and saved settings.
 
