@@ -70,7 +70,7 @@ test("HTTP failures and malformed answers follow the configured fallback", async
     [422, "provider_error"], [500, "provider_error"], [529, "provider_error"]] as const) {
     const { fetchImpl } = spy(() => reply({ error: "denied" }, status));
     const decision = await evaluate(action, mergeConfig(defaults, { classifier: { on_error: "block" } }),
-      createJevClassifier({ apiKey: "k", fetchImpl }));
+      createJevClassifier({ apiKey: "k", fetchImpl, retryDelayMs: 0 }));
     assert.equal(decision.errorCategory, category);
     assert.equal(decision.recommendation, "block");
   }
@@ -91,6 +91,18 @@ test("HTTP failures and malformed answers follow the configured fallback", async
   }
   const { fetchImpl } = spy(() => new Response("<html>not json", { status: 200 }));
   assert.equal((await evaluate(action, defaults, createJevClassifier({ apiKey: "k", fetchImpl }))).errorCategory, "invalid_response");
+});
+
+test("429/5xx are retried before failing; auth and bad answers are not retried", async () => {
+  let attempts = 0;
+  const flaky = (async () => { attempts += 1; return attempts < 3 ? reply({ error: "busy" }, 500) : reply(answer("approve", 0.95)); }) as typeof fetch;
+  const result = await createJevClassifier({ apiKey: "k", fetchImpl: flaky, retryDelayMs: 0 }).classify(input);
+  assert.equal(result.recommendation, "approve");
+  assert.equal(attempts, 3);
+  let denied = 0;
+  const denied401 = (async () => { denied += 1; return reply({ error: "denied" }, 401); }) as typeof fetch;
+  await assert.rejects(createJevClassifier({ apiKey: "k", fetchImpl: denied401, retryDelayMs: 0 }).classify(input), /unauthorized/);
+  assert.equal(denied, 1);
 });
 
 test("missing credentials never reach the network and stay visible", async () => {

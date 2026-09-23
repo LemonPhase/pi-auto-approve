@@ -13,6 +13,19 @@ export interface JevOptions {
   apiKey?: string;
   endpoint?: string;
   fetchImpl?: typeof fetch;
+  retryDelayMs?: number;
+}
+
+const MAX_ATTEMPTS = 3;
+const NON_RETRYABLE = new Set(["missing_credentials", "unauthorized", "invalid_response"]);
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise(resolve => {
+    if (signal?.aborted) return resolve();
+    const done = () => { clearTimeout(timer); signal?.removeEventListener("abort", done); resolve(); };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+  });
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -51,27 +64,36 @@ export function createJevClassifier(options: JevOptions = {}): ApprovalClassifie
       const model = endpoint.includes("ai-gateway.vercel.sh") && input.model.startsWith("jev-")
         ? "typesafe-ai/jev" : input.model;
       const started = Date.now();
-      const response = await fetcher(endpoint, {
-        method: "POST",
-        headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-        body: JSON.stringify({
-          model,
-          state: {
-            tool: input.tool, action: input.args, working_directory: input.cwd,
-            task_context: input.userContext ?? null,
-            context_truncated: input.contextTruncated, information_omitted: input.informationOmitted,
-          },
-          questions: { decision: { type: "choice", instructions: input.instructions, criteria: CRITERIA } },
-        }),
-        signal,
-      });
-      if (!response.ok)
-        throw new Error(response.status === 401 || response.status === 403 ? "unauthorized"
-          : response.status === 429 ? "rate_limited" : "provider_error");
-      let body: unknown;
-      try { body = await response.json(); }
-      catch { throw new Error("invalid_response"); }
-      return interpret(body, Date.now() - started);
+      for (let attempt = 1; ; attempt++) {
+        try {
+          const response = await fetcher(endpoint, {
+            method: "POST",
+            headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+            body: JSON.stringify({
+              model,
+              state: {
+                tool: input.tool, action: input.args, working_directory: input.cwd,
+                task_context: input.userContext ?? null,
+                context_truncated: input.contextTruncated, information_omitted: input.informationOmitted,
+              },
+              questions: { decision: { type: "choice", instructions: input.instructions, criteria: CRITERIA } },
+            }),
+            signal,
+          });
+          if (!response.ok)
+            throw new Error(response.status === 401 || response.status === 403 ? "unauthorized"
+              : response.status === 429 ? "rate_limited" : "provider_error");
+          let body: unknown;
+          try { body = await response.json(); }
+          catch { throw new Error("invalid_response"); }
+          return interpret(body, Date.now() - started);
+        } catch (error) {
+          // Transient failures (429/5xx/network) get two more shots; the policy timeout still bounds the total.
+          if (signal?.aborted || attempt >= MAX_ATTEMPTS
+            || (error instanceof Error && NON_RETRYABLE.has(error.message))) throw error;
+          await sleep((options.retryDelayMs ?? 250) * attempt, signal);
+        }
+      }
     },
   };
 }
