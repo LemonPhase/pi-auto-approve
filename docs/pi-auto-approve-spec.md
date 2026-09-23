@@ -3,7 +3,7 @@
 Status: implementation specification  
 Target: Pi coding-agent extension, Linux/WSL, Bash  
 Package name: `pi-auto-approve`  
-Initial release: `0.1.0`
+Release: `0.1.0`
 
 ## 1. Purpose
 
@@ -17,7 +17,7 @@ Different users will draw that line differently. Configuration, rather than a fi
 
 ## 2. Goals and limits
 
-The first release should:
+The extension should:
 
 - Intercept supported Pi tool calls before execution.
 - Support simple user-defined allow, ask, and block rules.
@@ -34,7 +34,7 @@ This extension is not a sandbox or a security boundary. It can miss dangerous ac
 
 Jev judges the information it receives. `./cleanup.sh` does not reveal the script's contents; a database command may not reveal whether its connection points to production. Jev can still offer a useful prediction, but approval is not proof of safety.
 
-For v0.1:
+Limits:
 
 - Do not promise protection against malicious repositories, other extensions, or deliberate bypasses.
 - Do not promise coverage of execution paths outside supported Pi tool calls.
@@ -102,7 +102,7 @@ Distinguish execution, user rejection, policy blocking, cancellation, and shadow
 
 Apply defaults, then user settings, then project settings. Merge objects by key. Later scalar values override earlier ones. Arrays replace rather than append; empty rule arrays clear inherited lists. Missing values inherit. Reject unsupported null values.
 
-For v0.1, the project directory is Pi's session working directory, resolved to an absolute path. Do not search parent directories. This locates configuration; it is not an enforced filesystem boundary.
+The project directory is Pi's session working directory, resolved to an absolute path. Do not search parent directories. This locates configuration; it is not an enforced filesystem boundary.
 
 Project settings may relax restrictions, replace rules, enable shadow mode, or disable the extension. This is intentional. Status must identify loaded files and effective settings.
 
@@ -159,7 +159,7 @@ Validate types, enum values, rule matchers, numeric bounds, and unknown keys. Mi
 
 If either loaded file is invalid, mark the approver inactive, warn with the file and error, and delegate unchanged. State clearly that actions will run without approval checks. Do not silently apply a partial configuration.
 
-Use the same behaviour on explicit reload. Load at startup and through `/guard-reload`; do not watch files automatically in v0.1. Valid configuration restores normal operation.
+Use the same behaviour on explicit reload. Load at startup and through `/guard-reload`; configuration files are not watched automatically. Valid configuration restores normal operation.
 
 ## 6. Simple local rules
 
@@ -202,7 +202,7 @@ Document that equivalent commands can evade substring rules and harmless text ca
 
 Install as a user-level Pi extension. Inspect the installed version and local extension documentation before choosing APIs. The version inspected during planning was 0.85.1.
 
-Use same-name tool wrappers and exported built-in tool factories where appropriate. Initial supported tools are `bash`, `read`, `write`, `edit`, `find`, `grep`, and `ls`.
+Use same-name tool wrappers and exported built-in tool factories where appropriate. Supported tools are `bash`, `read`, `write`, `edit`, `find`, `grep`, and `ls`.
 
 The compatibility spike must establish how to preserve active tool settings. Do not assume an API exists to snapshot original implementations.
 
@@ -215,7 +215,7 @@ Wrappers must:
 - Avoid rewriting the action to make it safer.
 - Avoid duplicate evaluation through both wrappers and event handlers.
 
-Use a `tool_call` handler for additional tools only if the spike establishes a compatible approach. Unknown/custom tools may pass through in v0.1, with coverage limitations shown in status and documentation. Observing a call does not imply enforcing its execution.
+Use a `tool_call` handler for additional tools only if the spike establishes a compatible approach. Unknown/custom tools may pass through, with coverage limitations shown in status and documentation. Observing a call does not imply enforcing its execution.
 
 Other extensions, custom backends, and directly user-issued commands are not guaranteed to be covered. Do not replace remote execution with local execution as a side effect of installing the extension.
 
@@ -246,15 +246,15 @@ interface ApprovalClassifier {
 }
 ```
 
-Use `POST https://api.typesafe.ai/v1/systemone` with `TYPESAFE_API_KEY`, initially pinning `jev-1.13.0`.
+Use `POST https://api.typesafe.ai/v1/systemone` with `TYPESAFE_API_KEY`, pinning `jev-1.13.0`.
 
 Start with one typed `choice` question offering `approve` and `ask`. Put the user's rubric in question instructions and action/context in `state`.
 
 Approve only when the returned choice is approve and its probability meets the configured minimum. Otherwise ask. Validate required fields, choices, finite probabilities in range, and model metadata. Invalid responses use the configured error fallback.
 
-Use a total request timeout with no automatic retries in v0.1. Record model version and latency. Treat errors as errors, not successful classifier answers.
+Use a total request timeout that bounds every attempt. Transient failures (rate limits, provider errors, network failures) are retried with linear backoff, up to three attempts in total, within that budget. Missing credentials, authorization failures, and malformed responses are not retried. Record model version and latency. Treat errors as errors, not successful classifier answers.
 
-Do not require multiple separate risk scores initially. Add questions only when evaluation shows value. If the provider does not give an explanation, say “Jev recommended asking” rather than inventing one.
+Do not require multiple separate risk scores. Add questions only when evaluation shows value. If the provider does not give an explanation, say “Jev recommended asking” rather than inventing one.
 
 ### Input and privacy
 
@@ -272,7 +272,7 @@ Explain that action information and optional user context are sent to an externa
 
 Redaction is best effort. Commands, filenames, and messages can contain private information that cannot reliably be recognized as a secret.
 
-Omitting content limits detection. For example, classifying a script write by its path and size cannot reveal everything that script would do. This is an accepted v0.1 limitation.
+Omitting content limits detection. For example, classifying a script write by its path and size cannot reveal everything that script would do. This is an accepted limitation.
 
 ## 9. Approval UI and commands
 
@@ -327,7 +327,7 @@ Build evaluation examples covering:
 
 Each example includes the rubric and context that determine the expected decision. Measure missed dangerous actions, unnecessary prompts, failures, and latency. Keep threshold-tuning examples separate from held-out examples.
 
-User approval is not a safety label. Shadow mode measures proposed behaviour without preventing execution. The initial release does not require zero misses or claim a measured safety guarantee.
+User approval is not a safety label. Shadow mode measures proposed behaviour without preventing execution. Zero misses is not a requirement, and no measured safety guarantee is claimed.
 
 ## 11. Implementation structure
 
@@ -351,7 +351,7 @@ test/
 
 Keep policy and classification independent of Pi imports. Inject classifier and approval dependencies for tests. Split files as complexity warrants.
 
-Do not add a shell parser, filesystem capability system, cache, or separately published policy package in the initial implementation.
+Do not add a shell parser, filesystem capability system, cache, or separately published policy package unless usage shows a need.
 
 ## 12. Milestones
 
@@ -414,34 +414,11 @@ Before release, verify:
 
 Use mocked provider tests for repeatable behaviour. Run live model evaluations separately; ordinary tests should not depend on a network model's answer.
 
-## 14. Later work
+## 14. Backlog
 
-Potential additions include richer matching, shell parsing, optional script inspection, session permissions, improved task-context selection, recoverable file changes, and sandboxed execution.
+Potential additions include richer matching, shell parsing, optional script inspection, session permissions, improved task-context selection, recoverable file changes, and sandboxed execution. Add these when usage shows a need.
 
-Add these when usage shows a need. The first release establishes the configurable approval framework and tests whether Jev catches consequential mistakes.
-
-## 15. Instructions for implementation
-
-1. Start with Milestone 0 only.
-2. Verify installed Pi APIs before choosing an integration.
-3. Preserve existing execution unless the selected mode and policy request an interruption.
-4. Do not reintroduce immutable hard denies or restrictive project-config merging.
-5. Do not require full shell analysis before integrating Jev.
-6. Treat permissive fallbacks and inactive protection as visible product states.
-7. Report changes, verification, limitations, and the next milestone after each milestone.
-
-Suggested first implementation prompt:
-
-```text
-Implement Milestone 0 from pi-auto-approve-spec.md. Inspect the installed Pi
-version and extension APIs. Build only a minimal Bash wrapper that observes
-and delegates without changing execution behaviour. Verify arguments, working
-directory, output, streaming, cancellation, and errors. Document compatibility
-with custom backends and other tool overrides. Do not add Jev, enforcement,
-or a shell parser yet.
-```
-
-## 16. References
+## 15. References
 
 - Pi extension documentation: <https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md>
 - Pi tool-override example: <https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/tool-override.ts>
