@@ -27,6 +27,7 @@ test("request carries the rubric, action, and context; the answer maps to a reco
   assert.equal(result.recommendation, "approve");
   assert.equal(result.approveProbability, 0.95);
   assert.equal(result.model, "jev-1.13.0");
+  assert.equal(result.requestedModel, defaults.classifier.model);
   assert.ok(result.latencyMs >= 0);
   assert.equal(calls[0].url, "https://api.typesafe.ai/v1/systemone");
   assert.equal((calls[0].init.headers as Record<string, string>).authorization, "Bearer secret-api-key-value");
@@ -163,10 +164,11 @@ test("AI_GATEWAY_API_KEY routes through the Vercel TypeSafe endpoint", async () 
   process.env.AI_GATEWAY_API_KEY = "gateway-key";
   try {
     const { calls, fetchImpl } = spy(() => reply(answer("approve", 1)));
-    await createJevClassifier({ fetchImpl }).classify(input);
+    const result = await createJevClassifier({ fetchImpl }).classify(input);
     assert.equal(calls[0].url, "https://ai-gateway.vercel.sh/typesafe/v1/systemone");
     assert.equal((calls[0].init.headers as Record<string, string>).authorization, "Bearer gateway-key");
     assert.equal(JSON.parse(String(calls[0].init.body)).model, "typesafe-ai/jev");
+    assert.equal(result.requestedModel, "typesafe-ai/jev");
   } finally {
     if (saved.key === undefined) delete process.env.TYPESAFE_API_KEY; else process.env.TYPESAFE_API_KEY = saved.key;
     if (saved.gateway === undefined) delete process.env.AI_GATEWAY_API_KEY; else process.env.AI_GATEWAY_API_KEY = saved.gateway;

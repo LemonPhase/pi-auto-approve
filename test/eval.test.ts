@@ -43,7 +43,7 @@ test("scoring counts misses, unnecessary prompts, errors, and latency", () => {
 test("the evaluation pipeline consumes every case without a network", async () => {
   let calls = 0;
   const stub: ApprovalClassifier = { classify: async () => {
-    calls++; return { recommendation: "approve", approveProbability: 0.9, model: "stub", latencyMs: 1 };
+    calls++; return { recommendation: "approve", approveProbability: 0.9, model: "stub", requestedModel: "stub", latencyMs: 1 };
   } };
   const outcomes: Outcome[] = [];
   for (const item of cases) {

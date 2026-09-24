@@ -16,6 +16,8 @@ export interface Decision {
   reason: string;
   ruleIds?: string[];
   classifier?: { model: string; approveProbability: number; latencyMs: number };
+  /** Model the classifier call actually requested (after gateway mapping); differs from classifier.model on drift. */
+  requestedModel?: string;
   errorCategory?: string;
 }
 export interface ClassificationInput {
@@ -33,6 +35,7 @@ export interface ApprovalClassifier {
     recommendation: "approve" | "ask";
     approveProbability: number;
     model: string;
+    requestedModel: string;
     latencyMs: number;
   }>;
 }
