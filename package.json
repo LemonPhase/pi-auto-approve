@@ -1,8 +1,16 @@
 {
   "name": "pi-auto-approve",
   "version": "0.1.0",
-  "private": true,
   "description": "A configurable, best-effort approval safety net for Pi",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LemonPhase/pi-auto-approve.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LemonPhase/pi-auto-approve/issues"
+  },
+  "homepage": "https://github.com/LemonPhase/pi-auto-approve#readme",
   "type": "module",
   "engines": {
     "node": ">=22.19.0"
@@ -21,7 +29,7 @@
     "test:eval": "tsx scripts/eval.ts"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "0.86.1"
+    "@earendil-works/pi-coding-agent": ">=0.86.1"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "0.86.1",
