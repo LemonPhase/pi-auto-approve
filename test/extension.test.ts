@@ -24,6 +24,9 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
   const project = join(root, ".pi/auto-approve.yaml");
   await writeFile(project, "mode: enforce\nclassifier:\n  enabled: false\naudit:\n  enabled: false\n");
   await writeFile(join(root, ".pi/settings.json"), JSON.stringify({ shellCommandPrefix: "printf 'prefix-'" }));
+  // User config loads regardless of project trust; keep audit off so the untrusted phase
+  // writes nothing to the real ~/.pi/agent/logs default.
+  await writeFile(join(root, "agent", "pi-auto-approve.yaml"), "audit:\n  enabled: false\n");
   try {
     const runtime = createExtensionRuntime();
     const loaded = await loadExtensions([resolve("src/index.ts")], root, undefined, runtime);
@@ -80,7 +83,7 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
     await command("guard-status");
     assert.match(messages.at(-1)!, /ignored.*not trusted/);
     assert.match(messages.at(-1)!, /mode: shadow/);
-    assert.ok(!messages.at(-1)!.includes("auto-approve.yaml"), "untrusted project file must not be a configuration source");
+    assert.ok(!messages.at(-1)!.includes(project), "untrusted project file must not be a configuration source");
     ctx.isProjectTrusted = () => true;
     await start();
     assert.match(JSON.stringify(await run("bash", { command: "printf working" })), /prefix-working/);

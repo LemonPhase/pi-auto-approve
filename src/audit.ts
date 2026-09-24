@@ -34,7 +34,7 @@ export function sessionLogPath(configured: string, sessionId: string | undefined
   return join(dirname(configured), `${basename(configured, ext)}-${id}${ext}`);
 }
 
-// Retention is hardcoded at 30 days; older per-session logs are pruned on first write.
+// Retention is hardcoded at 30 days; older per-session logs are pruned on first write to each directory.
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 async function pruneOldSessionLogs(configured: string): Promise<void> {
@@ -54,7 +54,7 @@ async function pruneOldSessionLogs(configured: string): Promise<void> {
 export class AuditLog {
   readonly recent: AuditRecord[] = [];
   private tail: Promise<void> = Promise.resolve();
-  private pruned = false;
+  private swept = new Set<string>();
   constructor(private readonly warn: (message: string) => void) {}
 
   async write(config: Config, record: AuditRecord): Promise<void> {
@@ -68,8 +68,10 @@ export class AuditLog {
       : Object.fromEntries(Object.entries(entry).filter(([key]) => key !== "action"));
     const path = sessionLogPath(config.audit.path, typeof record.sessionId === "string" ? record.sessionId : undefined);
     const operation = this.tail.then(async () => {
-      await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-      if (!this.pruned) { this.pruned = true; await pruneOldSessionLogs(config.audit.path).catch(() => {}); }
+      const dir = dirname(path);
+      await mkdir(dir, { recursive: true, mode: 0o700 });
+      // Sweep once per directory: a reload can point audit.path somewhere new.
+      if (!this.swept.has(dir)) { this.swept.add(dir); await pruneOldSessionLogs(config.audit.path).catch(() => {}); }
       const file = await open(path, constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
       try {
         await file.chmod(0o600);

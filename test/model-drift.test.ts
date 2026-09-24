@@ -19,7 +19,7 @@ async function harness(answer: Answer) {
   process.env.PI_CODING_AGENT_DIR = join(root, "agent");
   await mkdir(join(root, "agent"));
   await mkdir(join(root, ".pi"));
-  await writeFile(join(root, ".pi/auto-approve.yaml"), "audit:\n  enabled: false\n");
+  await writeFile(join(root, "agent", "pi-auto-approve.yaml"), "audit:\n  enabled: false\n");
   const commands = new Map<string, { handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> }>();
   const tools = new Map<string, ToolDefinition<any, any, any>>();
   const infos: ToolInfo[] = [{
