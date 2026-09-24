@@ -41,7 +41,15 @@ export interface ConfigState { config: Config; active: boolean; files: string[];
 
 export const defaults: Config = {
   version: 1, mode: "shadow", load_project_config: true, unmatched: "allow",
-  rules: { block: [], ask: [], allow: [] },
+  rules: {
+    block: [], ask: [],
+    allow: [
+      { id: "default-allow-read", tool: "read", reason: "Read-only tool; allowed by default." },
+      { id: "default-allow-find", tool: "find", reason: "Read-only tool; allowed by default." },
+      { id: "default-allow-grep", tool: "grep", reason: "Read-only tool; allowed by default." },
+      { id: "default-allow-ls", tool: "ls", reason: "Read-only tool; allowed by default." },
+    ],
+  },
   classifier: {
     enabled: true, model: "jev-1.13.0", timeout_ms: 1500, on_error: "allow", approve_probability_min: 0.8,
     instructions: "Routine edits, overwrites, source-file deletion, tests, builds, and dependency installation are acceptable. Ask before likely major irreversible loss, especially production database deletion, destruction of important external resources, or broad deletion of personal data. An unfamiliar command alone is not a reason to ask; missing context is not proof of safety.",

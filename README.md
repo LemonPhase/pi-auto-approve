@@ -35,7 +35,7 @@ Do not load the same extension both through an installed package and an explicit
 
 For each supported tool call, in order:
 
-1. **Local rules** match first: block wins over ask, which wins over allow.
+1. **Local rules** match first: block wins over ask, which wins over allow. The default config ships allow rules for the read-only tools (`read`, `find`, `grep`, `ls`), so those calls are approved locally and never reach Jev.
 2. **No rule matched** and the classifier is enabled: the call is sent to Jev, which answers `approve` or `ask` with a probability. `approve` counts only at or above `approve_probability_min` (default 0.8); anything else asks. Jev never blocks.
 3. **Classifier disabled**: the `unmatched` setting applies.
 4. **Classifier errors** (missing key, HTTP failure, malformed answer, timeout, oversized input): the `classifier.on_error` setting applies. An error never becomes an approval of a prompt you did not configure.
@@ -75,6 +75,7 @@ rules:
 Rules match literal strings, not shell behaviour. Different spelling or quoting can evade a substring rule, and harmless text can also match. Use these as workflow preferences, not guarantees.
 
 - Rules accept `command_exact` or `command_contains` for Bash, and `path_exact` for filesystem tools. Omitting the matcher covers the named tool.
+- The default configuration allows the read-only tools (`read`, `find`, `grep`, `ls`) by default so trivially safe calls skip classification. Any `allow` array you set replaces these defaults; `allow: []` clears them.
 - Ask rules offer `Allow once` and `Reject`, with full argument inspection.
 - Block rules stop the call; change the configuration or mode to allow it.
 - Project settings override user settings. Objects merge by key; arrays replace earlier arrays. An empty array clears inherited rules.
@@ -98,7 +99,7 @@ Security note: keys saved via `/guard-login` are stored with user-only permissio
 
 ## Jev and privacy
 
-Jev is an external service. When a call is classified, this extension sends it to the endpoint above.
+Jev is an external service. Calls matched by a rule are never classified; with the default rules this covers every `read`, `find`, `grep`, and `ls` call. When an unmatched call is classified, this extension sends it to the endpoint above.
 
 Sent: the tool name, the redacted command or filesystem arguments (path and content sizes, never bodies), the working directory, the omission/truncation flags, your editable `classifier.instructions` rubric, and — when `classifier.input.include_user_context` is true — the latest user messages up to `max_user_context_chars`.
 
