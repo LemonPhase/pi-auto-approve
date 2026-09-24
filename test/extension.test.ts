@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -43,6 +43,7 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
       for (const [name, registered] of extension.tools) tools.set(name, { ...registered.definition, sourceInfo: registered.sourceInfo });
     };
     const messages: string[] = [];
+    let sessionId: string | undefined = "test";
     const ctx = {
       cwd: root, hasUI: true, mode: "rpc", isProjectTrusted: () => false,
       ui: {
@@ -50,7 +51,7 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
         select: async (_title: string, options: string[]) => (options[0] === "Allow once" ? "Allow once" : options[0]),
         input: async () => "test-gateway-key-123",
       },
-      sessionManager: { getSessionId: () => "test", getSessionFile: () => undefined, getBranch: () => [] },
+      sessionManager: { getSessionId: () => sessionId, getSessionFile: () => undefined, getBranch: () => [] },
     } as unknown as ExtensionContext;
     async function start() {
       for (const handler of extension.handlers.get("session_start") ?? [])
@@ -120,7 +121,16 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
     assert.equal(process.env.AI_GATEWAY_API_KEY, envBeforeLogin.gateway);
     assert.match(messages.at(-1)!, /Removed/);
     // /guard-last renders one human-readable line per call, with the command and no metadata.
-    await writeFile(project, "mode: shadow\nclassifier:\n  enabled: false\naudit:\n  enabled: true\n");
+    // Audit files are per session: foo-<sessionId>.jsonl, pruned after 30 days.
+    const logs = join(root, "logs");
+    await mkdir(logs);
+    const old = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+    for (const name of ["pi-auto-approve-stale.jsonl", "unrelated.jsonl", "pi-auto-approve.jsonl"]) {
+      await writeFile(join(logs, name), "");
+      await utimes(join(logs, name), old, old);
+    }
+    await writeFile(join(logs, "pi-auto-approve-fresh.jsonl"), "");
+    await writeFile(project, `mode: shadow\nclassifier:\n  enabled: false\naudit:\n  enabled: true\n  path: ${JSON.stringify(join(logs, "pi-auto-approve.jsonl"))}\n`);
     await command("guard-reload");
     await run("write", { path: "last-demo.txt", content: "demo" });
     await command("guard-last");
@@ -129,6 +139,21 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
     assert.match(last, /ran/);
     assert.match(last, /last-demo\.txt/);
     assert.ok(!last.includes("configFingerprint") && !last.includes("actionHash"), "metadata stays out of the display");
+    // The session's records land in one file named from its sanitized session id.
+    const names = await readdir(logs);
+    assert.ok(names.includes("pi-auto-approve-test.jsonl"), "log file carries the session id");
+    const records = (await readFile(join(logs, "pi-auto-approve-test.jsonl"), "utf8")).trim().split("\n").map(line => JSON.parse(line));
+    assert.ok(records.some(record => record.tool === "write" && record.outcome === "executed"));
+    assert.ok(!names.includes("pi-auto-approve-stale.jsonl"), "old session logs are pruned after 30 days");
+    assert.ok(names.includes("pi-auto-approve-fresh.jsonl"), "recent session logs are kept");
+    assert.ok(names.includes("unrelated.jsonl") && names.includes("pi-auto-approve.jsonl"), "non-matching files are untouched");
+    sessionId = "weird id/1";
+    await run("write", { path: "named.txt", content: "x" });
+    sessionId = undefined;
+    await run("write", { path: "unnamed.txt", content: "x" });
+    const named = await readdir(logs);
+    assert.ok(named.includes("pi-auto-approve-weird_id_1.jsonl"), "unsafe characters in session ids are sanitized");
+    assert.ok(named.includes("pi-auto-approve-unknown.jsonl"), "missing session ids fall back to unknown");
     // An external override is left untouched on a later session start.
     tools.set("bash", { ...tools.get("bash")!, sourceInfo: { path: "/custom/remote.ts", source: "extension", scope: "user", origin: "top-level" } });
     await start();

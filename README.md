@@ -130,11 +130,11 @@ Existing extension/SDK custom tools are left unchanged when Pi identifies them a
 
 ## Logs
 
-Default: `~/.pi/agent/logs/pi-auto-approve.jsonl`, with user-only file permissions.
+Default: `~/.pi/agent/logs/pi-auto-approve.jsonl` is the base name. Each session writes its own file beside it, `pi-auto-approve-<sessionId>.jsonl`, with the session id sanitized and `unknown` when the action carries none. Files keep user-only permissions.
 
 Records contain decision/outcome metadata, rule IDs, configuration and action hashes, and user responses. File bodies and raw provider responses are not logged. Optional redacted action summaries are off by default; redaction is best effort.
 
-Set `audit.enabled: false` to disable recording. Logging failures warn and let normal handling continue.
+Session logs older than 30 days are removed when a new session starts writing (retention is fixed, not configurable). Set `audit.enabled: false` to disable recording. Logging failures warn and let normal handling continue.
 
 ## Testing and evaluation
 
