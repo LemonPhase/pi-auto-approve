@@ -5,10 +5,25 @@ import type { Action, Decision } from "../src/types.js";
 
 const action: Action = { id: "a", tool: "bash", args: { command: "echo test" }, cwd: "/tmp" };
 const decision: Decision = { recommendation: "ask", source: "rule", reason: "Confirm" };
+const hung = { select: () => new Promise<never>(() => {}) };
 
 test("closing an approval rejects and explicit approval allows once", async () => {
-  assert.equal(await createApprovalProvider({ select: async () => undefined }).request(action, decision), "reject");
-  assert.equal(await createApprovalProvider({ select: async () => "Allow once" }).request(action, decision), "allow_once");
+  assert.equal(await createApprovalProvider({ select: async () => undefined }, 60_000).request(action, decision), "reject");
+  assert.equal(await createApprovalProvider({ select: async () => "Allow once" }, 60_000).request(action, decision), "allow_once");
+});
+
+test("an unanswered prompt rejects once the deadline passes", async () => {
+  await assert.rejects(createApprovalProvider(hung, 20).request(action, decision), /timed out/);
+});
+
+test("the same deadline also bounds the inspect-pages loop", async () => {
+  let opened = false;
+  const ui = createApprovalProvider({ select: (_title, choices) => {
+    if (!opened) { opened = true; return Promise.resolve("Inspect full arguments"); }
+    assert.ok(choices.includes("Back to approval"));
+    return new Promise<never>(() => {});
+  } }, 20);
+  await assert.rejects(ui.request(action, decision), /timed out/);
 });
 
 test("large payload inspection exposes every character through bounded pages", async () => {
@@ -24,7 +39,7 @@ test("large payload inspection exposes every character through bounded pages", a
     }
     pages.push(title.slice(title.indexOf("\n") + 1));
     return choices.includes("Next page") ? "Next page" : "Back to approval";
-  } });
+  } }, 60_000);
   assert.equal(await ui.request(large, decision), "allow_once");
   assert.equal(pages.join(""), displayJSON(large.args));
   assert.ok(pages.every(page => page.length <= 600));

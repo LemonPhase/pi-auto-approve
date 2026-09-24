@@ -23,6 +23,7 @@ rules:
 approval:
   non_interactive: allow
   max_pending_prompts: 20
+  prompt_timeout_ms: 600000
 
 audit:
   enabled: true

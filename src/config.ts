@@ -24,7 +24,7 @@ const classifier = z.strictObject({
   enabled: z.boolean(), model: nonempty, timeout_ms: positive, on_error: handling,
   approve_probability_min: z.number().min(0).max(1), instructions: nonempty, input,
 });
-const approval = z.strictObject({ non_interactive: z.enum(["allow", "block"]), max_pending_prompts: positive });
+const approval = z.strictObject({ non_interactive: z.enum(["allow", "block"]), max_pending_prompts: positive, prompt_timeout_ms: positive });
 const audit = z.strictObject({ enabled: z.boolean(), path: nonempty, include_redacted_action: z.boolean() });
 const rules = z.strictObject({ block: z.array(rule), ask: z.array(rule), allow: z.array(rule) });
 const schema = z.strictObject({
@@ -47,7 +47,7 @@ export const defaults: Config = {
     instructions: "Routine edits, overwrites, source-file deletion, tests, builds, and dependency installation are acceptable. Ask before likely major irreversible loss, especially production database deletion, destruction of important external resources, or broad deletion of personal data. An unfamiliar command alone is not a reason to ask; missing context is not proof of safety.",
     input: { include_user_context: true, max_user_context_chars: 8000, max_action_chars: 12000 },
   },
-  approval: { non_interactive: "allow", max_pending_prompts: 20 },
+  approval: { non_interactive: "allow", max_pending_prompts: 20, prompt_timeout_ms: 600_000 },
   audit: { enabled: true, path: "~/.pi/agent/logs/pi-auto-approve.jsonl", include_redacted_action: false },
 };
 
