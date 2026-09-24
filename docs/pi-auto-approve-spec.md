@@ -303,7 +303,7 @@ Warn visibly about missing credentials and inactive protection. Avoid repeating 
 
 ## 10. Logging and evaluation
 
-Use append-only JSONL with user-only permissions. Record:
+Use append-only JSONL with user-only permissions. One file per session: `audit.path` is the base name and the session id (sanitized, `unknown` when absent) is inserted before the extension, for example `pi-auto-approve-<sessionId>.jsonl`. When a session starts writing, matching session logs older than 30 days in that directory are deleted. Record:
 
 - Timestamp, session ID, tool call ID, tool name, and action hash.
 - Mode and effective-configuration fingerprint.

@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { defaults, mergeConfig, type ConfigState } from "../src/config.js";
-import { AuditLog } from "../src/audit.js";
+import { AuditLog, sessionLogPath } from "../src/audit.js";
 import { Guard } from "../src/guard.js";
 import { ApprovalQueue } from "../src/approval.js";
 import type { Action, ApprovalProvider, Decision, UserChoice } from "../src/types.js";
@@ -89,19 +89,22 @@ test("audit logs outcomes with restrictive permissions and no bodies; audit fail
     const write: Action = { ...action, tool: "write", args: { path: "file", content: "PRIVATE BODY" } };
     s.config.rules.allow = [{ id: "write", tool: "write", reason: "allow" }];
     await guard.execute(write, s, undefined, undefined, undefined, async () => "done");
-    const text = await readFile(s.config.audit.path, "utf8");
+    const file = sessionLogPath(s.config.audit.path, write.sessionId);
+    assert.ok(file.endsWith("audit-unknown.jsonl"), "actions without a session id fall back to unknown");
+    const text = await readFile(file, "utf8");
     assert.ok(!text.includes("PRIVATE BODY"));
     assert.deepEqual(text.trim().split("\n").map(line => JSON.parse(line).outcome), ["evaluated", "execution_started", "executed"]);
-    assert.equal((await stat(s.config.audit.path)).mode & 0o777, 0o600);
+    assert.equal((await stat(file)).mode & 0o777, 0o600);
     // With the file flag off, the file drops the summary but memory keeps it for /guard-last.
     s.config.audit.include_redacted_action = false;
     await guard.execute(write, s, undefined, undefined, undefined, async () => "again");
-    const lastLine = (await readFile(s.config.audit.path, "utf8")).trim().split("\n").at(-1)!;
+    const lastLine = (await readFile(file, "utf8")).trim().split("\n").at(-1)!;
     assert.ok(!JSON.parse(lastLine).action, "file omits the summary unless opted in");
     assert.ok(log.recent.at(-1)!.action, "memory keeps the summary for /guard-last");
     let warnings = 0;
     const failingLog = new AuditLog(() => { warnings++; });
-    s.config.audit.path = root; // Opening a directory as a log fails.
+    await writeFile(join(root, "not-a-dir"), "");
+    s.config.audit.path = join(root, "not-a-dir", "audit.jsonl"); // Creating the log under a file fails.
     assert.equal(await new Guard(failingLog, () => {}).execute(write, s, undefined, undefined, undefined, async () => "still runs"), "still runs");
     assert.ok(warnings > 0);
   } finally { await rm(root, { recursive: true, force: true }); }
