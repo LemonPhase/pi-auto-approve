@@ -10,6 +10,7 @@ import {
   type ToolInfo,
 } from "@earendil-works/pi-coding-agent";
 import { loadExtensions } from "../node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js";
+import { clearPersistedKeys, credentialSummary, loadPersistedKeys, persistKey } from "../src/auth.js";
 
 test("real Pi loader registers native wrappers; commands, rules, reload, and native delegation work", async () => {
   const root = await mkdtemp(join(tmpdir(), "guard-extension-"));
@@ -96,18 +97,22 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
     await start();
     await command("guard-status");
     assert.match(messages.at(-1)!, /Unguarded tools: none/);
-    // /guard-login persists a key, activates it for this session, and reports it; /guard-logout removes both.
+    // /guard-login persists a key, activates it in the in-memory store, and reports it; /guard-logout removes both.
+    // Keys never reach process.env, so child processes cannot inherit them.
+    const envBeforeLogin = { direct: process.env.TYPESAFE_API_KEY, gateway: process.env.AI_GATEWAY_API_KEY };
     await command("guard-login");
     const authFile = join(root, "agent", "pi-auto-approve-auth.json");
     const saved = JSON.parse(await readFile(authFile, "utf8"));
     assert.equal(saved.AI_GATEWAY_API_KEY, "test-gateway-key-123");
-    assert.equal(process.env.AI_GATEWAY_API_KEY, "test-gateway-key-123");
+    assert.equal(process.env.TYPESAFE_API_KEY, envBeforeLogin.direct);
+    assert.equal(process.env.AI_GATEWAY_API_KEY, envBeforeLogin.gateway);
     assert.match(messages.at(-1)!, /ai-gateway\.vercel\.sh/);
     await command("guard-status");
     assert.match(messages.at(-1)!, /Vercel AI Gateway/);
     await command("guard-logout");
     assert.ok(!JSON.parse(await readFile(authFile, "utf8")).AI_GATEWAY_API_KEY);
-    assert.equal(process.env.AI_GATEWAY_API_KEY, undefined);
+    assert.equal(process.env.TYPESAFE_API_KEY, envBeforeLogin.direct);
+    assert.equal(process.env.AI_GATEWAY_API_KEY, envBeforeLogin.gateway);
     assert.match(messages.at(-1)!, /Removed/);
     // /guard-last renders one human-readable line per call, with the command and no metadata.
     await writeFile(project, "mode: shadow\nclassifier:\n  enabled: false\naudit:\n  enabled: true\n");
@@ -129,6 +134,25 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
     else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
     if (previousKeys.direct === undefined) delete process.env.TYPESAFE_API_KEY; else process.env.TYPESAFE_API_KEY = previousKeys.direct;
     if (previousKeys.gateway === undefined) delete process.env.AI_GATEWAY_API_KEY; else process.env.AI_GATEWAY_API_KEY = previousKeys.gateway;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("persist, load, and clear of keys never write API-key env vars", async () => {
+  const root = await mkdtemp(join(tmpdir(), "guard-auth-"));
+  const before = { direct: process.env.TYPESAFE_API_KEY, gateway: process.env.AI_GATEWAY_API_KEY };
+  try {
+    await persistKey(root, "direct", "sk-test-123");
+    await persistKey(root, "gateway", "vck-test-123");
+    await loadPersistedKeys(root);
+    assert.equal(process.env.TYPESAFE_API_KEY, before.direct);
+    assert.equal(process.env.AI_GATEWAY_API_KEY, before.gateway);
+    assert.equal(credentialSummary(), "direct");
+    await clearPersistedKeys(root, ["direct", "gateway"]);
+    assert.equal(process.env.TYPESAFE_API_KEY, before.direct);
+    assert.equal(process.env.AI_GATEWAY_API_KEY, before.gateway);
+    assert.equal(credentialSummary(), before.direct ? "direct" : before.gateway ? "gateway" : "none");
+  } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
