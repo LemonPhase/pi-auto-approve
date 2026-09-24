@@ -1,3 +1,4 @@
+import { resolveKey } from "./auth.js";
 import type { ApprovalClassifier, ClassificationInput } from "./types.js";
 
 export const DEFAULT_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
@@ -54,12 +55,13 @@ export function createJevClassifier(options: JevOptions = {}): ApprovalClassifie
   const fetcher = options.fetchImpl ?? fetch;
   return {
     async classify(input: ClassificationInput, signal?: AbortSignal) {
-      // Resolve per call so a mid-session login takes effect without a restart.
-      // An explicit key means direct TypeSafe unless an endpoint override says otherwise.
+      // Resolve per call so a mid-session login takes effect without a restart:
+      // explicit key, then the in-memory store, then env as a read-only fallback.
+      const resolved = resolveKey(options.apiKey);
       const endpoint = options.endpoint ?? process.env.TYPESAFE_API_URL
-        ?? (options.apiKey || process.env.TYPESAFE_API_KEY || !process.env.AI_GATEWAY_API_KEY ? DEFAULT_ENDPOINT : GATEWAY_ENDPOINT);
-      const apiKey = options.apiKey ?? process.env.TYPESAFE_API_KEY ?? process.env.AI_GATEWAY_API_KEY;
-      if (!apiKey) throw new Error("missing_credentials");
+        ?? (resolved?.kind === "gateway" ? GATEWAY_ENDPOINT : DEFAULT_ENDPOINT);
+      if (!resolved) throw new Error("missing_credentials");
+      const apiKey = resolved.apiKey;
       // The gateway names the model typesafe-ai/jev; direct Jev pins jev-1.13.0.
       const model = endpoint.includes("ai-gateway.vercel.sh") && input.model.startsWith("jev-")
         ? "typesafe-ai/jev" : input.model;

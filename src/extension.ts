@@ -5,7 +5,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { loadConfig, defaults, type ConfigState } from "./config.js";
 import { AuditLog, renderRecords } from "./audit.js";
-import { clearPersistedKeys, credentialSummary, envFor, loadPersistedKeys, persistKey, type KeyKind } from "./auth.js";
+import { clearPersistedKeys, credentialSummary, loadPersistedKeys, persistKey, type KeyKind } from "./auth.js";
 import { DEFAULT_ENDPOINT, GATEWAY_ENDPOINT } from "./classifier.js";
 import { Guard } from "./guard.js";
 import type { Action, ApprovalClassifier, Mode } from "./types.js";
@@ -88,8 +88,8 @@ export function registerAutoApprove(pi: ExtensionAPI, classifier?: ApprovalClass
       notify(`Mode: ${state.config.mode}; classifier error: ${state.config.classifier.on_error}; no UI: ${state.config.approval.non_interactive}.`);
       if (state.config.mode !== "disabled" && state.config.classifier.enabled) {
         if (!classifier) warn(`No classifier is configured; unmatched calls use classifier.on_error=${state.config.classifier.on_error}.`);
-        else if (!process.env.TYPESAFE_API_KEY && !process.env.AI_GATEWAY_API_KEY)
-          warn(`Neither TYPESAFE_API_KEY nor AI_GATEWAY_API_KEY is set; Jev calls use classifier.on_error=${state.config.classifier.on_error}.`);
+        else if (credentialSummary() === "none")
+          warn(`No Jev API key (saved or in the environment); Jev calls use classifier.on_error=${state.config.classifier.on_error}.`);
       }
     }
   }
@@ -175,8 +175,8 @@ export function registerAutoApprove(pi: ExtensionAPI, classifier?: ApprovalClass
     if (!key?.trim()) { notify("No key entered; nothing was saved.", true); return; }
     await persistKey(getAgentDir(), kind, key.trim());
     notify(kind === "gateway"
-      ? `Saved ${envFor(kind)}. Jev calls now route through ${GATEWAY_ENDPOINT} (model typesafe-ai/jev).`
-      : `Saved ${envFor(kind)}. Jev calls now go to ${DEFAULT_ENDPOINT}.`);
+      ? `Saved Vercel AI Gateway key. Jev calls now route through ${GATEWAY_ENDPOINT} (model typesafe-ai/jev).`
+      : `Saved direct TypeSafe key. Jev calls now go to ${DEFAULT_ENDPOINT}.`);
   } });
 
   pi.registerCommand("guard-logout", { description: "Remove saved Jev API keys", handler: async (_args, ctx) => {
@@ -187,6 +187,7 @@ export function registerAutoApprove(pi: ExtensionAPI, classifier?: ApprovalClass
     if (!choice) { notify(ctx.hasUI ? "Logout cancelled." : "/guard-logout needs an interactive UI.", true); return; }
     const kinds: KeyKind[] = choice === "Both" ? ["direct", "gateway"] : choice.startsWith("Vercel") ? ["gateway"] : ["direct"];
     await clearPersistedKeys(getAgentDir(), kinds);
-    notify(`Removed ${kinds.map(envFor).join(" and ")} from this session and saved settings.`);
+    const labels = kinds.map(item => item === "gateway" ? "Vercel AI Gateway key" : "direct TypeSafe key");
+    notify(`Removed ${labels.join(" and ")} from saved settings.`);
   } });
 }

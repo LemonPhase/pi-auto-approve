@@ -88,7 +88,9 @@ The classifier needs an API key. Two options:
 - **Vercel AI Gateway** (free tier): set `AI_GATEWAY_API_KEY`, leave `TYPESAFE_API_KEY` and `TYPESAFE_API_URL` unset. Calls route through `https://ai-gateway.vercel.sh/typesafe/v1/systemone` as model `typesafe-ai/jev` and appear in your Vercel usage. Note the gateway requires a credit card on file for your Vercel team before serving requests, including free ones.
 - **Direct TypeSafe**: set `TYPESAFE_API_KEY`. Calls go to `https://api.typesafe.ai/v1/systemone` with the pinned model `jev-1.13.0`.
 
-Or skip env vars: run `/guard-login` in a Pi session and paste a key. It takes effect immediately, is stored with user-only permissions (0600) in `~/.pi/agent/pi-auto-approve-auth.json`, and `/guard-logout` removes it. Shell-exported keys win over saved ones; `TYPESAFE_API_KEY` wins over `AI_GATEWAY_API_KEY`. `/guard-status` reports which credential is active.
+Or skip env vars: run `/guard-login` in a Pi session and paste a key. It takes effect immediately; `/guard-logout` removes it. `/guard-status` reports which credential is active.
+
+Security note: keys saved via `/guard-login` are stored with user-only permissions (0600) under the agent directory (`~/.pi/agent/pi-auto-approve-auth.json`) and read from there at classification time. They are never exported to `process.env`, so they never leak into bash commands or any other child process the agent spawns. `TYPESAFE_API_KEY` and `AI_GATEWAY_API_KEY` remain a read-only fallback for users who export their own keys (for example in CI); the extension never writes them. A saved key wins over an env var, and `TYPESAFE_API_KEY` wins over `AI_GATEWAY_API_KEY`.
 
 `TYPESAFE_API_URL` overrides the endpoint (for example, a proxy or stub).
 
@@ -111,7 +113,7 @@ To avoid external requests entirely, set `classifier.enabled: false` and use `un
 - `/guard-reload`: reload configuration and clear the session mode override.
 - `/guard-last [1..100]`: show recent calls — one line per call with the decision, outcome, and the command or path.
 - `/guard-login`: save a Jev API key (Vercel AI Gateway or direct TypeSafe) for this and future sessions.
-- `/guard-logout`: remove saved Jev API keys from the session and saved settings.
+- `/guard-logout`: remove saved Jev API keys from saved settings.
 
 In sessions without an approval UI, `approval.non_interactive` controls ask decisions: `allow` by default, or `block`. RPC sessions have a UI protocol and receive approval requests; their client must answer them.
 
