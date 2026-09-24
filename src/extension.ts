@@ -35,6 +35,7 @@ function userContext(ctx: ExtensionContext, max: number): { userContext: string;
 export function registerAutoApprove(pi: ExtensionAPI, classifier?: ApprovalClassifier): void {
   let state: ConfigState = { active: false, config: structuredClone(defaults), files: [], errors: [] };
   let mode: Mode | undefined;
+  let projectTrusted = true;
   let context: ExtensionContext | undefined;
   let coverage: string[] = [];
   let skipped: string[] = [];
@@ -71,6 +72,7 @@ export function registerAutoApprove(pi: ExtensionAPI, classifier?: ApprovalClass
     }
     lines.push(`  Credentials: ${credential === "gateway" ? "Vercel AI Gateway" : credential === "direct" ? "direct TypeSafe" : "none"}`);
     lines.push(`  Configuration files: ${state.files.length ? state.files.join(", ") : "none loaded (defaults)"}`);
+    if (!projectTrusted) lines.push("  Project configuration: ignored (project is not trusted)");
     lines.push(`  Tool coverage: ${coverage.length ? coverage.join(", ") : "none"}`);
     lines.push(`  Unguarded tools: ${skipped.length ? skipped.join(", ") : "none"}`);
     return lines.join("\n");
@@ -79,7 +81,8 @@ export function registerAutoApprove(pi: ExtensionAPI, classifier?: ApprovalClass
   async function reload(ctx: ExtensionContext): Promise<void> {
     context = ctx;
     await loadPersistedKeys(getAgentDir());
-    const loaded = await loadConfig(ctx.cwd, getAgentDir());
+    projectTrusted = ctx.isProjectTrusted();
+    const loaded = await loadConfig(ctx.cwd, getAgentDir(), projectTrusted);
     state = loaded;
     mode = undefined;
     warned.clear();

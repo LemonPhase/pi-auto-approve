@@ -28,6 +28,23 @@ test("rejects unknown keys, nulls, invalid enums/bounds, and invalid matchers", 
   assert.throws(() => mergeConfig(defaults, { load_project_config: false }, true), /user-only/);
 });
 
+test("project config loads only for trusted projects", async () => {
+  const root = await mkdtemp(join(tmpdir(), "guard-trust-"));
+  const agent = join(root, "agent");
+  await mkdir(agent);
+  await mkdir(join(root, ".pi"));
+  try {
+    await writeFile(join(root, ".pi/auto-approve.yaml"), "mode: disabled\n");
+    const untrusted = await loadConfig(root, agent, false);
+    assert.equal(untrusted.config.mode, "shadow");
+    assert.deepEqual(untrusted.files, [], "untrusted project file must not load");
+    assert.equal((await loadConfig(root, agent, true)).config.mode, "disabled");
+    assert.equal((await loadConfig(root, agent)).config.mode, "disabled", "trusted is the default");
+    await writeFile(join(agent, "pi-auto-approve.yaml"), "load_project_config: false\nmode: enforce\n");
+    assert.equal((await loadConfig(root, agent, true)).config.mode, "enforce", "user opt-out still wins for trusted projects");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test("config files: missing, disabled project loading, malformed reload, recovery", async () => {
   const root = await mkdtemp(join(tmpdir(), "guard-config-"));
   const agent = join(root, "agent");

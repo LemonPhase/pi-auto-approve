@@ -70,7 +70,7 @@ export function expandHome(path: string): string {
   return path === "~" ? homedir() : path.startsWith("~/") ? join(homedir(), path.slice(2)) : path;
 }
 
-export async function loadConfig(cwd: string, agentDir = join(homedir(), ".pi/agent")): Promise<ConfigState> {
+export async function loadConfig(cwd: string, agentDir = join(homedir(), ".pi/agent"), projectTrusted = true): Promise<ConfigState> {
   let config = structuredClone(defaults);
   const files: string[] = [];
   const errors: string[] = [];
@@ -97,7 +97,7 @@ export async function loadConfig(cwd: string, agentDir = join(homedir(), ".pi/ag
   }
   try {
     await load(join(agentDir, "pi-auto-approve.yaml"), false);
-    if (config.load_project_config) await load(resolve(cwd, ".pi/auto-approve.yaml"), true);
+    if (projectTrusted && config.load_project_config) await load(resolve(cwd, ".pi/auto-approve.yaml"), true);
   } catch (error) {
     errors.push((error as Error).message);
     return { config: structuredClone(defaults), active: false, files, errors };
