@@ -49,7 +49,8 @@ Limits:
 Ship with:
 
 - `mode: shadow`.
-- Empty allow, ask, and block lists.
+- Empty ask and block lists.
+- Default allow rules for the read-only tools (`read`, `find`, `grep`, `ls`) with stable IDs, so trivially safe calls match locally and are never sent to Jev.
 - Jev enabled for unmatched supported calls.
 - An editable rubric focused on major destructive mistakes.
 - `classifier.on_error: allow`.
@@ -119,7 +120,19 @@ unmatched: allow # when classification is disabled
 rules:
   block: []
   ask: []
-  allow: []
+  allow:
+    - id: default-allow-read
+      tool: read
+      reason: "Read-only tool; allowed by default."
+    - id: default-allow-find
+      tool: find
+      reason: "Read-only tool; allowed by default."
+    - id: default-allow-grep
+      tool: grep
+      reason: "Read-only tool; allowed by default."
+    - id: default-allow-ls
+      tool: ls
+      reason: "Read-only tool; allowed by default."
 
 classifier:
   enabled: true

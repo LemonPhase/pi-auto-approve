@@ -13,6 +13,7 @@ test("project overrides scalars and replaces arrays while inheriting missing key
   assert.equal(project.classifier.input.max_action_chars, 100);
   assert.equal(project.classifier.enabled, false);
   assert.equal(user.rules.block.length, 1);
+  assert.deepEqual(project.rules.allow.map(r => r.id), ["default-allow-read", "default-allow-find", "default-allow-grep", "default-allow-ls"], "unspecified rule lists inherit the defaults");
   assert.equal(defaults.mode, "shadow");
 });
 

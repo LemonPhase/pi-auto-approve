@@ -20,6 +20,17 @@ test("block > ask > allow; local matches bypass classification", async () => {
   assert.equal(calls, 0);
 });
 
+test("default rules allow read-only tools without classifying", async () => {
+  let calls = 0;
+  const classifier: ApprovalClassifier = { classify: async () => { calls++; throw Error("must not run"); } };
+  for (const tool of ["read", "find", "grep", "ls"] as const) {
+    const decision = await evaluate({ ...action, tool, args: { path: "a" } }, defaults, classifier);
+    assert.equal(decision.recommendation, "approve");
+    assert.equal(decision.source, "rule");
+  }
+  assert.equal(calls, 0);
+});
+
 test("literal matching does not normalize or broaden input", () => {
   const rule = { id: "r", tool: "bash" as const, reason: "r", command_exact: "git status" };
   assert.ok(matches(rule, action));

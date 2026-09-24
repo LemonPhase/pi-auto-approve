@@ -83,7 +83,7 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
     await command("guard-mode", "shadow");
     await run("write", { path: "shadow.txt", content: "allowed" });
     await command("guard-reload");
-    await assert.rejects(run("read", { path: "a.txt" }), /blocked/);
+    await assert.rejects(run("write", { path: "blocked-again.txt", content: "never" }), /blocked/);
     await writeFile(project, "mode: invalid");
     await command("guard-reload");
     await command("guard-mode", "enforce");
