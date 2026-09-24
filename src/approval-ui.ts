@@ -11,7 +11,7 @@ export function displayJSON(value: unknown): string {
     char => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
 
-export function createApprovalProvider(ui: ApprovalUI): ApprovalProvider {
+export function createApprovalProvider(ui: ApprovalUI, promptTimeoutMs: number): ApprovalProvider {
   return { request: async (action, decision, signal) => {
     const full = displayJSON(action.args);
     const summary = action.tool === "bash" ? full
@@ -22,9 +22,21 @@ export function createApprovalProvider(ui: ApprovalUI): ApprovalProvider {
       `Reason: ${displayJSON(decision.reason)}`,
       decision.classifier ? `Approve probability: ${decision.classifier.approveProbability}` : "",
       !action.userContext ? "No user context available." : action.contextTruncated ? "User context was truncated." : ""].filter(Boolean).join("\n");
+    // One overall deadline spans the whole flow: the initial prompt and every inspect page.
+    const deadline = Date.now() + promptTimeoutMs;
+    const ask = async (prompt: string, options: string[]): Promise<string | undefined> => {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) throw new Error("Approval prompt timed out");
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const expired = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Approval prompt timed out")), remaining);
+      });
+      try { return await Promise.race([ui.select(prompt, options, { signal }), expired]); }
+      finally { if (timer) clearTimeout(timer); }
+    };
     while (true) {
       checkCancelled(signal);
-      const choice = await ui.select(title, ["Allow once", "Reject", "Inspect full arguments"], { signal });
+      const choice = await ask(title, ["Allow once", "Reject", "Inspect full arguments"]);
       checkCancelled(signal);
       if (choice !== "Inspect full arguments") return choice === "Allow once" ? "allow_once" : "reject";
       // Bounded pages make large commands and file payloads inspectable in both TUI and RPC.
@@ -35,7 +47,7 @@ export function createApprovalProvider(ui: ApprovalUI): ApprovalProvider {
       while (true) {
         checkCancelled(signal);
         const choices = [ ...(page > 0 ? ["Previous page"] : []), ...(page + 1 < pages.length ? ["Next page"] : []), "Back to approval" ];
-        const selected = await ui.select(`Full arguments — page ${page + 1}/${pages.length}\n${pages[page]}`, choices, { signal });
+        const selected = await ask(`Full arguments — page ${page + 1}/${pages.length}\n${pages[page]}`, choices);
         checkCancelled(signal);
         if (selected === "Next page" && page + 1 < pages.length) page++;
         else if (selected === "Previous page" && page > 0) page--;

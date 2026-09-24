@@ -43,6 +43,8 @@ For each supported tool call, in order:
 
 Cancelling a call cancels its approval and never authorizes delayed execution.
 
+An unanswered approval prompt expires after `approval.prompt_timeout_ms` (default 600000 ms, ten minutes). One deadline covers the whole request, including payload inspection; when it passes, the call falls back to `approval.non_interactive`.
+
 ## Configure
 
 User settings: `~/.pi/agent/pi-auto-approve.yaml` (or the agent directory selected through `PI_CODING_AGENT_DIR`).

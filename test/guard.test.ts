@@ -7,6 +7,7 @@ import { defaults, mergeConfig, type ConfigState } from "../src/config.js";
 import { AuditLog } from "../src/audit.js";
 import { Guard } from "../src/guard.js";
 import { ApprovalQueue } from "../src/approval.js";
+import { createApprovalProvider } from "../src/approval-ui.js";
 import type { Action, ApprovalProvider, Decision, UserChoice } from "../src/types.js";
 
 const action: Action = { id: "a", tool: "bash", cwd: "/tmp", args: { command: "echo harmless" } };
@@ -137,6 +138,20 @@ test("UI failure follows configured non-interactive fallback", async () => {
   let calls = 0;
   const s = state();
   await guard.execute(action, s, undefined, ui, undefined, async () => ++calls);
+  s.config.approval.non_interactive = "block";
+  await assert.rejects(guard.execute(action, s, undefined, ui, undefined, async () => ++calls), /blocked/);
+  assert.equal(calls, 1);
+});
+
+test("an unanswered prompt times out and falls back to non-interactive handling", async () => {
+  const warnings: string[] = [];
+  const guard = new Guard(new AuditLog(() => {}), message => warnings.push(message));
+  const s = state();
+  s.config.approval.prompt_timeout_ms = 20;
+  const ui = createApprovalProvider({ select: () => new Promise<never>(() => {}) }, s.config.approval.prompt_timeout_ms);
+  let calls = 0;
+  assert.equal(await guard.execute(action, s, undefined, ui, undefined, async () => ++calls), 1);
+  assert.deepEqual(warnings, ["Approval unavailable; using configured non-interactive handling."]);
   s.config.approval.non_interactive = "block";
   await assert.rejects(guard.execute(action, s, undefined, ui, undefined, async () => ++calls), /blocked/);
   assert.equal(calls, 1);

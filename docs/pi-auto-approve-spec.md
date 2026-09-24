@@ -54,6 +54,7 @@ Ship with:
 - An editable rubric focused on major destructive mistakes.
 - `classifier.on_error: allow`.
 - `approval.non_interactive: allow`.
+- `approval.prompt_timeout_ms: 600000`.
 
 Shadow mode records recommendations and executes the original action without prompting or blocking. Users select `enforce` to make recommendations and rules affect execution. Disabled mode delegates without classification.
 
@@ -146,6 +147,7 @@ classifier:
 approval:
   non_interactive: allow # allow | block
   max_pending_prompts: 20
+  prompt_timeout_ms: 600000 # one deadline per approval request
 
 audit:
   enabled: true
@@ -289,6 +291,8 @@ An enforce-mode prompt shows:
 Make long commands inspectable in full and escape control characters that could hide their meaning. For edits/writes, show path and change size with a way to inspect the payload locally; do not send it to Jev by default.
 
 Closing the prompt means rejection. Return a clear blocked tool result so the agent can continue. Defer reusable session permissions.
+
+One overall deadline covers the whole approval request: the prompt and any payload inspection share the budget of `approval.prompt_timeout_ms` (default 600000 ms). When it passes, treat the prompt as unavailable and use `approval.non_interactive` handling. Cancellation still takes precedence over the timeout.
 
 Provide:
 

@@ -107,7 +107,7 @@ export function registerAutoApprove(pi: ExtensionAPI, classifier?: ApprovalClass
         id, tool: delegate.name, args: input, cwd: ctx.cwd, sessionId: ctx.sessionManager.getSessionId(),
         ...(snapshot.config.classifier.input.include_user_context ? userContext(ctx, snapshot.config.classifier.input.max_user_context_chars) : {}),
       };
-      return guard.execute(action, snapshot, snapshotMode, ctx.hasUI ? createApprovalProvider(ctx.ui) : undefined, signal, next);
+      return guard.execute(action, snapshot, snapshotMode, ctx.hasUI ? createApprovalProvider(ctx.ui, snapshot.config.approval.prompt_timeout_ms) : undefined, signal, next);
     });
   }
 
