@@ -17,6 +17,8 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
   const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
   const previousKeys = { direct: process.env.TYPESAFE_API_KEY, gateway: process.env.AI_GATEWAY_API_KEY };
   process.env.PI_CODING_AGENT_DIR = join(root, "agent");
+  delete process.env.TYPESAFE_API_KEY;
+  delete process.env.AI_GATEWAY_API_KEY;
   await mkdir(join(root, "agent"));
   await mkdir(join(root, ".pi"));
   const project = join(root, ".pi/auto-approve.yaml");
@@ -73,11 +75,14 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
     const untrustedOutput = JSON.stringify(await run("bash", { command: "printf working" }));
     assert.match(untrustedOutput, /working/);
     assert.ok(!untrustedOutput.includes("prefix-"), "untrusted shell settings must not change execution");
+    // An untrusted project must not load the project layer, and /guard-status must say so.
+    await command("guard-status");
+    assert.match(messages.at(-1)!, /ignored.*not trusted/);
+    assert.match(messages.at(-1)!, /mode: shadow/);
+    assert.ok(!messages.at(-1)!.includes("auto-approve.yaml"), "untrusted project file must not be a configuration source");
     ctx.isProjectTrusted = () => true;
     await start();
     assert.match(JSON.stringify(await run("bash", { command: "printf working" })), /prefix-working/);
-    ctx.isProjectTrusted = () => false;
-    await start();
     await writeFile(project, "mode: enforce\nclassifier:\n  enabled: false\nunmatched: block\naudit:\n  enabled: false\n");
     await command("guard-reload");
     await assert.rejects(run("write", { path: "blocked.txt", content: "never" }), /blocked/);

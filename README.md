@@ -47,7 +47,7 @@ Cancelling a call cancels its approval and never authorizes delayed execution.
 
 User settings: `~/.pi/agent/pi-auto-approve.yaml` (or the agent directory selected through `PI_CODING_AGENT_DIR`).
 
-Project settings: `.pi/auto-approve.yaml` in Pi's session working directory. Parent directories are not searched.
+Project settings: `.pi/auto-approve.yaml` in Pi's session working directory. Parent directories are not searched. They load only for trusted projects.
 
 Start from [the example](examples/pi-auto-approve.yaml). A minimal active configuration is:
 
@@ -76,7 +76,7 @@ Rules match literal strings, not shell behaviour. Different spelling or quoting 
 - Ask rules offer `Allow once` and `Reject`, with full argument inspection.
 - Block rules stop the call; change the configuration or mode to allow it.
 - Project settings override user settings. Objects merge by key; arrays replace earlier arrays. An empty array clears inherited rules.
-- Project settings may disable protection. Set user-only `load_project_config: false` to ignore them.
+- Project settings may disable protection. Set user-only `load_project_config: false` to ignore them. Project settings apply only to trusted projects; in an untrusted project the project layer is skipped entirely and `/guard-status` reports that it was ignored.
 - Invalid configuration produces a warning and turns approval checks off until a valid reload.
 
 The editable `classifier.instructions` rubric (see the example config) tells Jev what routine work looks like for you and what counts as major irreversible loss. Tune it to your workflow; keep the threshold at 0.8 unless evaluation suggests otherwise.

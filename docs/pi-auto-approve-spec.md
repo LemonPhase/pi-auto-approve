@@ -106,6 +106,8 @@ The project directory is Pi's session working directory, resolved to an absolute
 
 Project settings may relax restrictions, replace rules, enable shadow mode, or disable the extension. This is intentional. Status must identify loaded files and effective settings.
 
+Project settings apply only to trusted projects. Load the project layer only when Pi reports the project as trusted (`ExtensionContext.isProjectTrusted()`). For an untrusted project, skip the project layer entirely and state in `/guard-status` that project configuration was ignored because the project is not trusted.
+
 Users can set `load_project_config: false` in user configuration. This field is user-only and cannot be overridden by a project.
 
 ### Example configuration
