@@ -5,7 +5,7 @@ import { classificationInput, evaluate, matches } from "../src/policy.js";
 import type { Action, ApprovalClassifier } from "../src/types.js";
 
 const action: Action = { id: "a", tool: "bash", cwd: "/tmp", args: { command: "git status" }, userContext: "Check the repo" };
-const fake = (probability = 0.9): ApprovalClassifier => ({ classify: async () => ({ recommendation: "approve", approveProbability: probability, model: "fake", latencyMs: 1 }) });
+const fake = (probability = 0.9): ApprovalClassifier => ({ classify: async () => ({ recommendation: "approve", approveProbability: probability, model: "fake", requestedModel: "fake", latencyMs: 1 }) });
 
 test("block > ask > allow; local matches bypass classification", async () => {
   let calls = 0;
@@ -43,7 +43,7 @@ test("literal matching does not normalize or broaden input", () => {
 test("fake classifier threshold, ask response, unavailable/disabled and error fallbacks", async () => {
   assert.equal((await evaluate(action, defaults, fake(0.8))).recommendation, "approve");
   assert.equal((await evaluate(action, defaults, fake(0.799))).recommendation, "ask");
-  assert.equal((await evaluate(action, defaults, { classify: async () => ({ recommendation: "ask", approveProbability: 1, model: "fake", latencyMs: 0 }) })).recommendation, "ask");
+  assert.equal((await evaluate(action, defaults, { classify: async () => ({ recommendation: "ask", approveProbability: 1, model: "fake", requestedModel: "fake", latencyMs: 0 }) })).recommendation, "ask");
   for (const handling of ["allow", "ask", "block"] as const) {
     const config = mergeConfig(defaults, { classifier: { on_error: handling } });
     assert.equal((await evaluate(action, config)).recommendation, handling === "allow" ? "approve" : handling);

@@ -60,9 +60,9 @@ export async function evaluate(action: Action, config: Config, classifier?: Appr
       || result.approveProbability < 0 || result.approveProbability > 1 || !result.model
       || !Number.isFinite(result.latencyMs) || result.latencyMs < 0) throw new Error("invalid_response");
     const recommendation = result.recommendation === "approve" && result.approveProbability >= config.classifier.approve_probability_min ? "approve" : "ask";
-    return { recommendation, source: "jev", reason: `Classifier recommended ${recommendation}.`, classifier: {
-      model: result.model, approveProbability: result.approveProbability, latencyMs: result.latencyMs,
-    } };
+    return { recommendation, source: "jev", reason: `Classifier recommended ${recommendation}.`,
+      requestedModel: result.requestedModel,
+      classifier: { model: result.model, approveProbability: result.approveProbability, latencyMs: result.latencyMs } };
   } catch (error) {
     checkCancelled(signal);
     const code = timedOut ? "timeout" : error instanceof Error && classifierCategories.has(error.message) ? error.message : "classifier_error";

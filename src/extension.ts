@@ -68,6 +68,7 @@ export function registerAutoApprove(pi: ExtensionAPI, classifier?: ApprovalClass
       if (!classifier) lines.push(`  Classifier: not configured; unmatched calls use ${state.config.classifier.on_error}`);
       else if (credential === "none") lines.push(`  Classifier: enabled, but no credentials — calls fall back to ${state.config.classifier.on_error}`);
       else lines.push(`  Classifier: enabled; errors fall back to ${state.config.classifier.on_error}`);
+      lines.push(`  Last reported model: ${guard.lastReportedModel ?? "none"}`);
       lines.push(`  Asks without a UI: ${state.config.approval.non_interactive}`);
     }
     lines.push(`  Credentials: ${credential === "gateway" ? "Vercel AI Gateway" : credential === "direct" ? "direct TypeSafe" : "none"}`);

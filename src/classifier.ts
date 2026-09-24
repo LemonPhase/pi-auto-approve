@@ -88,7 +88,7 @@ export function createJevClassifier(options: JevOptions = {}): ApprovalClassifie
           let body: unknown;
           try { body = await response.json(); }
           catch { throw new Error("invalid_response"); }
-          return interpret(body, Date.now() - started);
+          return { ...interpret(body, Date.now() - started), requestedModel: model };
         } catch (error) {
           // Transient failures (429/5xx/network) get two more shots; the policy timeout still bounds the total.
           if (signal?.aborted || attempt >= MAX_ATTEMPTS

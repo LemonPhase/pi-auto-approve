@@ -114,7 +114,7 @@ test("fake classifier runs through the complete approval flow and disabled mode 
   let executions = 0;
   const guard = new Guard(new AuditLog(() => {}), () => {}, { classify: async () => {
     classifications++;
-    return { recommendation: "ask", approveProbability: 0.1, model: "fake", latencyMs: 0 };
+    return { recommendation: "ask", approveProbability: 0.1, model: "fake", requestedModel: "fake", latencyMs: 0 };
   } });
   const s = state(); s.config.rules.ask = [];
   const ui: ApprovalProvider = { request: async () => { prompts++; return "allow_once"; } };
@@ -162,7 +162,7 @@ test("shadow evaluates the fake classifier but never prompts", async () => {
   let prompts = 0;
   const guard = new Guard(new AuditLog(() => {}), () => {}, { classify: async () => {
     classifications++;
-    return { recommendation: "ask", approveProbability: 0.01, model: "fake", latencyMs: 0 };
+    return { recommendation: "ask", approveProbability: 0.01, model: "fake", requestedModel: "fake", latencyMs: 0 };
   } });
   const s = state(); s.config.rules.ask = [];
   const result = await guard.execute(action, s, "shadow", { request: async () => { prompts++; return "reject"; } }, undefined, async () => "executed");

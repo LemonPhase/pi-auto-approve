@@ -9,6 +9,7 @@ export class GuardBlocked extends Error {}
 
 export class Guard {
   readonly queue = new ApprovalQueue();
+  lastReportedModel: string | undefined;
   constructor(readonly audit: AuditLog, private readonly warn: (message: string) => void, private readonly classifier?: ApprovalClassifier) {}
 
   async execute<T>(action: Action, state: ConfigState, mode: Mode | undefined, provider: ApprovalProvider | undefined,
@@ -29,6 +30,12 @@ export class Guard {
     try {
       const decision = await evaluate(action, config, this.classifier, signal);
       if (decision.errorCategory) this.warn(decision.reason);
+      if (decision.classifier) {
+        this.lastReportedModel = decision.classifier.model;
+        // Provider-side model swaps change behavior validated by evals; surface them once via the deduped warn path.
+        if (decision.requestedModel && decision.requestedModel !== decision.classifier.model)
+          this.warn(`Classifier model drift: requested ${decision.requestedModel}, response reported ${decision.classifier.model}.`);
+      }
       // Omit free-text rule reasons from logs; they can contain arbitrary private data.
       const detail = { source: decision.source, proposedDecision: decision.recommendation, ruleIds: decision.ruleIds,
         classifier: decision.classifier, errorCategory: decision.errorCategory };
