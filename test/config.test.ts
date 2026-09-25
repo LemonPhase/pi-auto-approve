@@ -40,7 +40,7 @@ test("project config loads only for trusted projects", async () => {
     assert.equal(untrusted.config.mode, "shadow");
     assert.deepEqual(untrusted.files, [], "untrusted project file must not load");
     assert.equal((await loadConfig(root, agent, true)).config.mode, "disabled");
-    assert.equal((await loadConfig(root, agent)).config.mode, "disabled", "trusted is the default");
+    assert.equal((await loadConfig(root, agent)).config.mode, "shadow", "untrusted is the safe default");
     await writeFile(join(agent, "pi-auto-approve.yaml"), "load_project_config: false\nmode: enforce\n");
     assert.equal((await loadConfig(root, agent, true)).config.mode, "enforce", "user opt-out still wins for trusted projects");
   } finally { await rm(root, { recursive: true, force: true }); }
@@ -52,21 +52,21 @@ test("config files: missing, disabled project loading, malformed reload, recover
   await mkdir(agent);
   await mkdir(join(root, ".pi"));
   try {
-    assert.equal((await loadConfig(root, agent)).active, true);
+    assert.equal((await loadConfig(root, agent, true)).active, true);
     await writeFile(join(agent, "pi-auto-approve.yaml"), "load_project_config: false\nmode: enforce\n");
     await writeFile(join(root, ".pi/auto-approve.yaml"), "mode: [malformed\n");
-    assert.equal((await loadConfig(root, agent)).config.mode, "enforce");
+    assert.equal((await loadConfig(root, agent, true)).config.mode, "enforce");
     await writeFile(join(agent, "pi-auto-approve.yaml"), "mode: enforce\n");
-    const failed = await loadConfig(root, agent);
+    const failed = await loadConfig(root, agent, true);
     assert.equal(failed.active, false);
     assert.equal(failed.config.mode, "shadow", "must not retain partial user settings");
     assert.match(failed.errors[0], /auto-approve.yaml/);
     await writeFile(join(root, ".pi/auto-approve.yaml"), "mode: disabled\n");
-    assert.equal((await loadConfig(root, agent)).config.mode, "disabled");
+    assert.equal((await loadConfig(root, agent, true)).config.mode, "disabled");
     await writeFile(join(root, ".pi/auto-approve.yaml"), "mode: shadow\nmode: enforce\n");
-    assert.equal((await loadConfig(root, agent)).active, false, "duplicate YAML keys rejected");
+    assert.equal((await loadConfig(root, agent, true)).active, false, "duplicate YAML keys rejected");
     await writeFile(join(root, ".pi/auto-approve.yaml"), "classifier:\n  timeout_ms: super-secret-value\n");
-    const diagnostic = (await loadConfig(root, agent)).errors.join();
+    const diagnostic = (await loadConfig(root, agent, true)).errors.join();
     assert.ok(!diagnostic.includes("super-secret-value"));
   } finally { await rm(root, { recursive: true, force: true }); }
 });

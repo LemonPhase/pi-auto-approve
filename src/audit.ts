@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { mkdir, open, readdir, stat, unlink } from "node:fs/promises";
+import { mkdir, open, readdir, rmdir, stat, unlink } from "node:fs/promises";
 import { constants } from "node:fs";
-import { basename, dirname, extname, join } from "node:path";
+import { dirname, extname, join } from "node:path";
 import type { Action } from "./types.js";
 import type { Config } from "./config.js";
 
@@ -27,23 +27,32 @@ export function actionSummary(action: Action): Record<string, unknown> {
 
 export type AuditRecord = Record<string, unknown> & { toolCallId: string; outcome: string };
 
-/** Per-session log file: foo.jsonl becomes foo-<sessionId>.jsonl next to it. */
-export function sessionLogPath(configured: string, sessionId: string | undefined): string {
-  const id = (sessionId ?? "").replace(/[^\w.-]/g, "_") || "unknown";
-  const ext = extname(configured);
-  return join(dirname(configured), `${basename(configured, ext)}-${id}${ext}`);
+/** Workspace grouping mirrors pi's session layout: /home/you/Proj becomes --home-you-Proj--. */
+export function workspaceKey(cwd: string): string {
+  const withSep = /[/\\]$/.test(cwd) ? cwd : `${cwd}/`;
+  return `-${withSep.replace(/[/\\]/g, "-")}-`.replace(/[^\w.-]/g, "-");
 }
 
-// Retention is hardcoded at 30 days; older per-session logs are pruned on first write to each directory.
-const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+/** audit.path is the log directory; a legacy .jsonl value is read as its parent directory. */
+export function auditRoot(configured: string): string {
+  return extname(configured) ? dirname(configured) : configured;
+}
 
-async function pruneOldSessionLogs(configured: string): Promise<void> {
-  const ext = extname(configured);
-  const stem = basename(configured, ext);
-  const dir = dirname(configured);
+/** One file per session inside the workspace directory: <root>/<workspace>/<sessionId>.jsonl. */
+export function auditLogPath(configured: string, cwd: string | undefined, sessionId: string | undefined): string {
+  const id = (sessionId ?? "").replace(/[^\w.-]/g, "_") || "unknown";
+  return join(auditRoot(configured), workspaceKey(cwd ?? ""), `${id}.jsonl`);
+}
+
+// Retention is hardcoded at 30 days; older logs are pruned on first write to each directory.
+const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+// Flat pi-auto-approve*.jsonl files in the log root are layouts superseded by the workspace split.
+const LEGACY_FLAT = /^pi-auto-approve.*\.jsonl$/;
+
+async function prune(dir: string, match: (name: string) => boolean): Promise<void> {
   const cutoff = Date.now() - RETENTION_MS;
   for (const name of await readdir(dir)) {
-    if (!name.startsWith(`${stem}-`) || !name.endsWith(ext)) continue;
+    if (!match(name)) continue;
     try {
       const info = await stat(join(dir, name));
       if (info.isFile() && info.mtimeMs < cutoff) await unlink(join(dir, name));
@@ -66,17 +75,30 @@ export class AuditLog {
     // redacted summary so /guard-last can show what ran.
     const persisting = config.audit.include_redacted_action ? entry
       : Object.fromEntries(Object.entries(entry).filter(([key]) => key !== "action"));
-    const path = sessionLogPath(config.audit.path, typeof record.sessionId === "string" ? record.sessionId : undefined);
+    const path = auditLogPath(config.audit.path, typeof record.cwd === "string" ? record.cwd : undefined,
+      typeof record.sessionId === "string" ? record.sessionId : undefined);
     const operation = this.tail.then(async () => {
       const dir = dirname(path);
       await mkdir(dir, { recursive: true, mode: 0o700 });
-      // Sweep once per directory: a reload can point audit.path somewhere new.
-      if (!this.swept.has(dir)) { this.swept.add(dir); await pruneOldSessionLogs(config.audit.path).catch(() => {}); }
       const file = await open(path, constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
       try {
         await file.chmod(0o600);
         await file.writeFile(`${JSON.stringify(persisting)}\n`);
       } finally { await file.close(); }
+      // Retention sweeps run after the write, once per directory per process. A reload
+      // can point audit.path somewhere new, so each location gets its own sweep.
+      if (!this.swept.has(dir)) {
+        this.swept.add(dir);
+        await prune(dir, name => name.endsWith(".jsonl")).catch(() => {});
+        const root = auditRoot(config.audit.path);
+        if (!this.swept.has(root)) {
+          this.swept.add(root);
+          await prune(root, name => LEGACY_FLAT.test(name)).catch(() => {});
+          // Best effort: drop workspace directories that retention emptied.
+          for (const entry of await readdir(root, { withFileTypes: true }).catch(() => []))
+            if (entry.isDirectory()) await rmdir(join(root, entry.name)).catch(() => {});
+        }
+      }
     });
     this.tail = operation.catch(() => { this.warn("Audit logging failed; normal handling continues."); });
     await this.tail;

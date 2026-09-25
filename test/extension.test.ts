@@ -10,6 +10,7 @@ import {
   type ToolInfo,
 } from "@earendil-works/pi-coding-agent";
 import { loadExtensions } from "../node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js";
+import { workspaceKey } from "../src/audit.js";
 import { clearPersistedKeys, credentialSummary, loadPersistedKeys, persistKey } from "../src/auth.js";
 
 test("real Pi loader registers native wrappers; commands, rules, reload, and native delegation work", async () => {
@@ -124,15 +125,20 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
     assert.equal(process.env.AI_GATEWAY_API_KEY, envBeforeLogin.gateway);
     assert.match(messages.at(-1)!, /Removed/);
     // /guard-last renders one human-readable line per call, with the command and no metadata.
-    // Audit files are per session: foo-<sessionId>.jsonl, pruned after 30 days.
+    // Audit logs are per session and per workspace: <logs>/<workspace>/<sessionId>.jsonl.
     const logs = join(root, "logs");
-    await mkdir(logs);
+    const workspace = join(logs, workspaceKey(root));
+    await mkdir(workspace, { recursive: true });
     const old = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
-    for (const name of ["pi-auto-approve-stale.jsonl", "unrelated.jsonl", "pi-auto-approve.jsonl"]) {
-      await writeFile(join(logs, name), "");
-      await utimes(join(logs, name), old, old);
-    }
-    await writeFile(join(logs, "pi-auto-approve-fresh.jsonl"), "");
+    const aged = async (dir: string, name: string) => {
+      await writeFile(join(dir, name), "");
+      await utimes(join(dir, name), old, old);
+    };
+    await aged(workspace, "old-session.jsonl");
+    await aged(logs, "pi-auto-approve-stale.jsonl");
+    await aged(logs, "unrelated.jsonl");
+    await aged(logs, "pi-auto-approve.jsonl");
+    await writeFile(join(workspace, "recent-session.jsonl"), "");
     await writeFile(project, `mode: shadow\nclassifier:\n  enabled: false\naudit:\n  enabled: true\n  path: ${JSON.stringify(join(logs, "pi-auto-approve.jsonl"))}\n`);
     await command("guard-reload");
     await run("write", { path: "last-demo.txt", content: "demo" });
@@ -142,21 +148,23 @@ test("real Pi loader registers native wrappers; commands, rules, reload, and nat
     assert.match(last, /ran/);
     assert.match(last, /last-demo\.txt/);
     assert.ok(!last.includes("configFingerprint") && !last.includes("actionHash"), "metadata stays out of the display");
-    // The session's records land in one file named from its sanitized session id.
-    const names = await readdir(logs);
-    assert.ok(names.includes("pi-auto-approve-test.jsonl"), "log file carries the session id");
-    const records = (await readFile(join(logs, "pi-auto-approve-test.jsonl"), "utf8")).trim().split("\n").map(line => JSON.parse(line));
-    assert.ok(records.some(record => record.tool === "write" && record.outcome === "executed"));
-    assert.ok(!names.includes("pi-auto-approve-stale.jsonl"), "old session logs are pruned after 30 days");
-    assert.ok(names.includes("pi-auto-approve-fresh.jsonl"), "recent session logs are kept");
-    assert.ok(names.includes("unrelated.jsonl") && names.includes("pi-auto-approve.jsonl"), "non-matching files are untouched");
+    // The session's records land in one file per session inside the workspace directory.
+    const names = await readdir(workspace);
+    assert.ok(names.includes("test.jsonl"), "the log file is named for the session id");
+    const records = (await readFile(join(workspace, "test.jsonl"), "utf8")).trim().split("\n").map(line => JSON.parse(line));
+    assert.ok(records.some(record => record.tool === "write" && record.outcome === "executed" && record.cwd === root), "records carry the working directory");
+    assert.ok(!names.includes("old-session.jsonl"), "old session logs are pruned after 30 days");
+    assert.ok(names.includes("recent-session.jsonl"), "recent session logs are kept");
+    const rootNames = await readdir(logs);
+    assert.ok(!rootNames.includes("pi-auto-approve.jsonl") && !rootNames.includes("pi-auto-approve-stale.jsonl"), "flat logs from previous layouts age out");
+    assert.ok(rootNames.includes("unrelated.jsonl"), "non-matching files are untouched");
     sessionId = "weird id/1";
     await run("write", { path: "named.txt", content: "x" });
     sessionId = undefined;
     await run("write", { path: "unnamed.txt", content: "x" });
-    const named = await readdir(logs);
-    assert.ok(named.includes("pi-auto-approve-weird_id_1.jsonl"), "unsafe characters in session ids are sanitized");
-    assert.ok(named.includes("pi-auto-approve-unknown.jsonl"), "missing session ids fall back to unknown");
+    const named = await readdir(workspace);
+    assert.ok(named.includes("weird_id_1.jsonl"), "unsafe characters in session ids are sanitized");
+    assert.ok(named.includes("unknown.jsonl"), "missing session ids fall back to unknown");
     // An external override is left untouched on a later session start.
     tools.set("bash", { ...tools.get("bash")!, sourceInfo: { path: "/custom/remote.ts", source: "extension", scope: "user", origin: "top-level" } });
     await start();

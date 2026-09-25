@@ -56,7 +56,7 @@ export const defaults: Config = {
     input: { include_user_context: true, max_user_context_chars: 8000, max_action_chars: 12000 },
   },
   approval: { non_interactive: "allow", max_pending_prompts: 20, prompt_timeout_ms: 600_000 },
-  audit: { enabled: true, path: "~/.pi/agent/logs/pi-auto-approve.jsonl", include_redacted_action: false },
+  audit: { enabled: true, path: "~/.pi/agent/logs", include_redacted_action: false },
 };
 
 export function mergeConfig(base: Config, raw: unknown, project = false): Config {
@@ -78,7 +78,8 @@ export function expandHome(path: string): string {
   return path === "~" ? homedir() : path.startsWith("~/") ? join(homedir(), path.slice(2)) : path;
 }
 
-export async function loadConfig(cwd: string, agentDir = join(homedir(), ".pi/agent"), projectTrusted = true): Promise<ConfigState> {
+/** Untrusted by default: callers must affirm trust to load project configuration. */
+export async function loadConfig(cwd: string, agentDir = join(homedir(), ".pi/agent"), projectTrusted = false): Promise<ConfigState> {
   let config = structuredClone(defaults);
   const files: string[] = [];
   const errors: string[] = [];

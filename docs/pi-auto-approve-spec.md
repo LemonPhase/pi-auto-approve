@@ -164,7 +164,7 @@ approval:
 
 audit:
   enabled: true
-  path: "~/.pi/agent/logs/pi-auto-approve.jsonl"
+  path: "~/.pi/agent/logs"
   include_redacted_action: false
 ```
 
@@ -322,9 +322,9 @@ Warn visibly about missing credentials and inactive protection. Avoid repeating 
 
 ## 10. Logging and evaluation
 
-Use append-only JSONL with user-only permissions. One file per session: `audit.path` is the base name and the session id (sanitized, `unknown` when absent) is inserted before the extension, for example `pi-auto-approve-<sessionId>.jsonl`. When a session starts writing, matching session logs older than 30 days in that directory are deleted. Record:
+Use append-only JSONL with user-only permissions. One file per session in a per-working-directory layout: `audit.path` names the log directory, each working directory gets a workspace subdirectory named after Pi's session-directory convention, and sessions write `<sessionId>.jsonl` inside it (sanitized, `unknown` when absent). When a session first writes to a workspace directory, session logs older than 30 days there are deleted, and older flat logs from previous layouts are deleted from the log root. Record:
 
-- Timestamp, session ID, tool call ID, tool name, and action hash.
+- Timestamp, session ID, working directory, tool call ID, tool name, and action hash.
 - Mode and effective-configuration fingerprint.
 - Matched rule IDs or classifier result.
 - Model, probability, latency, and error category.

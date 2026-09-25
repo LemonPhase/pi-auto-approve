@@ -2,7 +2,7 @@ import type { ConfigState } from "./config.js";
 import type { Action, ApprovalClassifier, ApprovalProvider, Mode } from "./types.js";
 import { evaluate } from "./policy.js";
 import { ApprovalQueue } from "./approval.js";
-import { AuditLog, actionSummary, hash } from "./audit.js";
+import { AuditLog, actionSummary, hash, redact } from "./audit.js";
 import { checkCancelled } from "./cancellation.js";
 
 export class GuardBlocked extends Error {}
@@ -21,6 +21,7 @@ export class Guard {
     if (!state.active || config.mode === "disabled") return delegate();
     const base = {
       sessionId: action.sessionId, toolCallId: action.id, tool: action.tool,
+      cwd: redact(action.cwd),
       actionHash: hash({ tool: action.tool, args: action.args, cwd: action.cwd }),
       mode: config.mode, configFingerprint: hash(config),
       // Always recorded in memory (redacted); the file copy drops it unless opted in.

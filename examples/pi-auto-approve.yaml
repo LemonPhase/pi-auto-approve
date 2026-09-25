@@ -27,5 +27,5 @@ approval:
 
 audit:
   enabled: true
-  path: ~/.pi/agent/logs/pi-auto-approve.jsonl
+  path: ~/.pi/agent/logs
   include_redacted_action: false

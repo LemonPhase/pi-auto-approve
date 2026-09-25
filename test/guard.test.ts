@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { defaults, mergeConfig, type ConfigState } from "../src/config.js";
-import { AuditLog, sessionLogPath } from "../src/audit.js";
+import { AuditLog, auditLogPath } from "../src/audit.js";
 import { Guard } from "../src/guard.js";
 import { ApprovalQueue } from "../src/approval.js";
 import { createApprovalProvider } from "../src/approval-ui.js";
@@ -90,11 +90,13 @@ test("audit logs outcomes with restrictive permissions and no bodies; audit fail
     const write: Action = { ...action, tool: "write", args: { path: "file", content: "PRIVATE BODY" } };
     s.config.rules.allow = [{ id: "write", tool: "write", reason: "allow" }];
     await guard.execute(write, s, undefined, undefined, undefined, async () => "done");
-    const file = sessionLogPath(s.config.audit.path, write.sessionId);
-    assert.ok(file.endsWith("audit-unknown.jsonl"), "actions without a session id fall back to unknown");
+    const file = auditLogPath(s.config.audit.path, write.cwd, write.sessionId);
+    assert.ok(file.endsWith(join("--tmp--", "unknown.jsonl")), "workspaces group logs; missing session ids fall back to unknown");
     const text = await readFile(file, "utf8");
     assert.ok(!text.includes("PRIVATE BODY"));
-    assert.deepEqual(text.trim().split("\n").map(line => JSON.parse(line).outcome), ["evaluated", "execution_started", "executed"]);
+    const records = text.trim().split("\n").map(line => JSON.parse(line));
+    assert.deepEqual(records.map(record => record.outcome), ["evaluated", "execution_started", "executed"]);
+    assert.equal(records[0].cwd, "/tmp", "records carry the working directory");
     assert.equal((await stat(file)).mode & 0o777, 0o600);
     // With the file flag off, the file drops the summary but memory keeps it for /guard-last.
     s.config.audit.include_redacted_action = false;
